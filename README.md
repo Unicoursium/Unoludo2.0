@@ -17,7 +17,7 @@ I'll run the same commands when I download your repos.
 ### Game Module – API
 *You will produce an API specification, i.e. a list of function names and their signatures, for a Javascript module that represents the state of your game and the operations you can perform on it that advances the game or provides information.*
 
-- [ ] Include a `.js ` module file in `/web-app` containing the API using `jsdoc`.
+- [ ] Include a `.js ` module file in `/docs` containing the API using `jsdoc`.
 - [ ] Update `/jsdoc.json` to point to this module in `.source.include` (line 7)
 - [ ] Compile jsdoc using the run configuration `Generate Docs`
 - [ ] Check the generated docs have compiled correctly.
@@ -30,7 +30,7 @@ I'll run the same commands when I download your repos.
 ### Unit Tests – Specification
 *For the Game module API you have produced, write a set of unit tests descriptions that specify the expected behaviour of one aspect of your API, e.g. you might pick the win condition, or how the state changes when a move is made.*
 
-- [ ] Write unit test definitions in `/web-app/tests`.
+- [ ] Write unit test definitions in `/docs/tests`.
 - [ ] Check the headings appear in the Testing sidebar.
 
 ### Unit Tests – Implementation
@@ -41,7 +41,7 @@ I'll run the same commands when I download your repos.
 ### Web Application
 *Produce a web application that allows a user to interface with your game module.*
 
-- Implement in `/web-app`
+- Implement in `/docs`
   - [ ] `index.html`
   - [ ] `default.css`
   - [ ] `main.js`

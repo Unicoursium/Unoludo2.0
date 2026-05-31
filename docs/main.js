@@ -19,6 +19,7 @@ let pending_render_effects = undefined;
 let gameMode = "none";
 let myPlayerIndex = 0;
 let mpStateSynced = false;
+let multiplayerCpuAuthorityIndex = 0;
 const draw_streaks = Object.create(null);
 const CPU_TURN_DELAY = 1600;
 const CPU_DIFFICULTIES = Object.freeze(["easy", "medium", "hard"]);
@@ -1724,11 +1725,12 @@ const cpu_take_turn = function () {
 };
 
 const schedule_cpu_if_needed = function () {
-    // In multiplayer, only auto-play for CPU players on this client's machine
+    // In multiplayer, the host is the single authority for CPU turns.
     if (gameMode === "multi") {
         const player = Unoludo.current_player(state);
         if (Unoludo.is_ended(state)) return;
         if (player.kind !== "cpu") return;
+        if (myPlayerIndex !== multiplayerCpuAuthorityIndex) return;
         if (cpu_timer !== undefined) return;
 
         action_message.textContent = player.name + " is thinking...";
@@ -3108,6 +3110,7 @@ window.UnoludoApp = {
     startSinglePlayer: function () {
         gameMode = "single";
         myPlayerIndex = 0;
+        multiplayerCpuAuthorityIndex = 0;
         mpStateSynced = false;
         reset_local_runtime_state();
         initGameState(single_player_names, {
@@ -3120,6 +3123,12 @@ window.UnoludoApp = {
     startMultiPlayer: function (roomId, playerIndex, playerKinds) {
         gameMode = "multi";
         myPlayerIndex = playerIndex;
+        multiplayerCpuAuthorityIndex = (
+            window.UnoludoLobby !== undefined &&
+            window.UnoludoLobby.getCurrentHostIndex !== undefined
+            ? window.UnoludoLobby.getCurrentHostIndex()
+            : 0
+        );
         mpStateSynced = false;
         reset_local_runtime_state();
 

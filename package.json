@@ -3,7 +3,10 @@
   "type": "module",
   "version": "1.0.0",
   "description": "",
-  "main": "web-app/Module.js",
+  "main": "docs/unoludo.js",
+  "scripts": {
+    "docs": "jsdoc -c jsdoc.json"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {

@@ -34,6 +34,7 @@
     // ---- State ----
     var currentRoomId = null;
     var currentPlayerIndex = null;
+    var currentHostIndex = 0;
     var currentPlayers = {};
     var roomListener = null;
     var listenerRoomId = null;
@@ -67,7 +68,10 @@
 
     // ---- Check if player is host ----
     function isHost() {
-        return currentPlayerIndex === 0;
+        return (
+            currentPlayerIndex !== null &&
+            currentPlayerIndex === currentHostIndex
+        );
     }
 
     // ---- Count human and CPU players ----
@@ -148,34 +152,47 @@
     function addCpuPlayer() {
         if (!isHost() || !currentRoomId) return;
 
-        var keys = Object.keys(currentPlayers).sort();
-        if (keys.length >= 4) return;
-
-        // Find the lowest empty slot
-        var usedSlots = keys.map(function (k) { return parseInt(k); });
-        var newSlot = -1;
-        for (var i = 0; i < 4; i++) {
-            if (usedSlots.indexOf(i) === -1) {
-                newSlot = i;
-                break;
-            }
-        }
-        if (newSlot === -1) return;
-
-        // Pick a name based on the slot's colour
-        var colourNames = ["Blue", "Green", "Red", "Yellow"];
-        var cpuName = "CPU " + colourNames[newSlot];
-
         var roomRef = db.ref("rooms/" + currentRoomId);
-        var updates = {};
-        updates["players/" + newSlot] = {
-            name: cpuName,
-            isCPU: true,
-            addedAt: firebase.database.ServerValue.TIMESTAMP
-        };
-        updates["playersCount"] = keys.length + 1;
 
-        roomRef.update(updates);
+        roomRef.transaction(function (room) {
+            var keys;
+            var usedSlots;
+            var newSlot = -1;
+            var colourNames = ["Blue", "Green", "Red", "Yellow"];
+            var i;
+
+            if (!room || room.status !== "waiting") {
+                return;
+            }
+
+            room.players = room.players || {};
+            keys = Object.keys(room.players);
+
+            if (keys.length >= 4) {
+                return;
+            }
+
+            usedSlots = keys.map(function (k) { return parseInt(k); });
+            for (i = 0; i < 4; i++) {
+                if (usedSlots.indexOf(i) === -1) {
+                    newSlot = i;
+                    break;
+                }
+            }
+
+            if (newSlot === -1) {
+                return;
+            }
+
+            room.players[newSlot] = {
+                name: "CPU " + colourNames[newSlot],
+                isCPU: true,
+                addedAt: Date.now()
+            };
+            room.playersCount = keys.length + 1;
+
+            return room;
+        });
     }
 
     // ---- Remove CPU player ----
@@ -205,6 +222,7 @@
 
             var roomData = {
                 status: "waiting",
+                hostIndex: 0,
                 createdAt: firebase.database.ServerValue.TIMESTAMP,
                 playersCount: 1,
                 players: {
@@ -238,55 +256,62 @@
 
         var roomRef = db.ref("rooms/" + code);
 
-        // First check if room exists and is waiting
-        roomRef.once("value", function (roomSnap) {
-            var room = roomSnap.val();
-            if (!room || room.status !== "waiting") {
-                if (!room) {
-                    alert("Room not found. Check the code and try again.");
-                } else {
-                    alert("This game has already started.");
-                }
-                return;
-            }
-
-            var players = room.players || {};
-            var keys = Object.keys(players);
-            if (keys.length >= 4) {
-                alert("Room is full.");
-                return;
-            }
-
-            // Find the lowest empty slot
-            var usedSlots = keys.map(function (k) { return parseInt(k); });
+        roomRef.transaction(function (room) {
+            var players;
+            var keys;
+            var usedSlots;
             var newIndex = -1;
-            for (var i = 0; i < 4; i++) {
+            var i;
+
+            if (!room || room.status !== "waiting") {
+                return;
+            }
+
+            players = room.players || {};
+            keys = Object.keys(players);
+
+            if (keys.length >= 4) {
+                return;
+            }
+
+            usedSlots = keys.map(function (k) { return parseInt(k); });
+            for (i = 0; i < 4; i++) {
                 if (usedSlots.indexOf(i) === -1) {
                     newIndex = i;
                     break;
                 }
             }
+
             if (newIndex === -1) {
-                alert("Room is full.");
                 return;
             }
 
-            // Write the new player and update count
-            var updates = {};
-            updates["rooms/" + code + "/players/" + newIndex] = {
+            room.players = players;
+            room.players[newIndex] = {
                 name: name,
-                joinedAt: firebase.database.ServerValue.TIMESTAMP
+                joinedAt: Date.now()
             };
-            updates["rooms/" + code + "/playersCount"] = keys.length + 1;
+            room.playersCount = keys.length + 1;
+            currentPlayerIndex = newIndex;
 
-            db.ref().update(updates).then(function () {
-                currentRoomId = code;
-                currentPlayerIndex = newIndex;
-                roomCodeValue.textContent = code;
-                showScreen(roomScreen);
-                roomStatus.textContent = "Waiting for players...";
-                startRoomListener(code);
-            });
+            return room;
+        }, function (error, committed) {
+            if (error) {
+                alert("Could not join room. Please try again.");
+                currentPlayerIndex = null;
+                return;
+            }
+
+            if (!committed || currentPlayerIndex === null) {
+                alert("Room is unavailable, full, or already started.");
+                return;
+            }
+
+            currentRoomId = code;
+            roomCodeValue.textContent = code;
+            showScreen(roomScreen);
+            roomStatus.textContent = "Waiting for players...";
+            startRoomListener(code);
         });
     }
 
@@ -306,6 +331,11 @@
                 return;
             }
 
+            currentHostIndex = (
+                room.hostIndex === undefined
+                ? 0
+                : room.hostIndex
+            );
             currentPlayers = room.players || {};
             renderPlayerList(currentPlayers);
 
@@ -344,36 +374,58 @@
 
     // ---- Leave room ----
     function leaveRoom() {
-        if (roomListener && currentRoomId) {
-            db.ref("rooms/" + currentRoomId).off("value", roomListener);
+        var roomId = currentRoomId;
+        var playerIndex = currentPlayerIndex;
+
+        if (roomListener && roomId) {
+            db.ref("rooms/" + roomId).off("value", roomListener);
             roomListener = null;
             listenerRoomId = null;
         }
 
-        // Remove this player from Firebase
-        if (currentRoomId !== null && currentPlayerIndex !== null) {
-            db.ref("rooms/" + currentRoomId + "/players/" + currentPlayerIndex).remove();
-            // Update playersCount based on remaining players
-            var remaining = Object.keys(currentPlayers).filter(function (k) {
-                return parseInt(k) !== currentPlayerIndex;
-            }).length;
-            db.ref("rooms/" + currentRoomId + "/playersCount").set(remaining);
-        }
+        if (roomId !== null && playerIndex !== null) {
+            db.ref("rooms/" + roomId).transaction(function (room) {
+                var remainingKeys;
+                var hostIndex;
 
-        // Only remove the whole room if it's the host (index 0) and no other players remain
-        if (currentPlayerIndex === 0 && currentRoomId) {
-            db.ref("rooms/" + currentRoomId).remove();
+                if (!room || !room.players) {
+                    return room;
+                }
+
+                delete room.players[playerIndex];
+                remainingKeys = Object.keys(room.players);
+
+                if (remainingKeys.length === 0) {
+                    return null;
+                }
+
+                room.playersCount = remainingKeys.length;
+                hostIndex = (
+                    room.hostIndex === undefined
+                    ? 0
+                    : room.hostIndex
+                );
+
+                if (hostIndex === playerIndex) {
+                    room.hostIndex = parseInt(remainingKeys.sort(function (a, b) {
+                        return parseInt(a) - parseInt(b);
+                    })[0]);
+                }
+
+                return room;
+            });
         }
 
         currentRoomId = null;
         currentPlayerIndex = null;
+        currentHostIndex = 0;
         currentPlayers = {};
         showScreen(lobbyScreen);
     }
 
-    // ---- Start the game (creator only) ----
+    // ---- Start the game (host only) ----
     function startGame() {
-        if (currentPlayerIndex !== 0) return;
+        if (!isHost()) return;
         var roomRef = db.ref("rooms/" + currentRoomId);
         roomRef.update({ status: "playing" });
     }
@@ -438,6 +490,7 @@
         getGameScreen: function () { return gameScreen; },
         getCurrentRoomId: function () { return currentRoomId; },
         getCurrentPlayerIndex: function () { return currentPlayerIndex; },
+        getCurrentHostIndex: function () { return currentHostIndex; },
         startGame: startGame,
         onGameStart: function (callback) { gameStartCallback = callback; }
     };

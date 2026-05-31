@@ -28,8 +28,7 @@
                 "${workspaceFolder}/node_modules/**",
                 "<node_internals>/**"
             ],
-            // You'll need to change this line below to point to your module.
-            "program": "${workspaceFolder}/docs/Module.js"
+            "program": "${workspaceFolder}/docs/unoludo.js"
         },
         {
             "name": "Generate Docs",
