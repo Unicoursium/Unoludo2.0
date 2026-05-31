@@ -1369,3 +1369,14 @@ button:active {
         background-position: center !important;
     }
 }
+
+/* Difficulty button */
+#cpu-difficulty {
+    background: linear-gradient(135deg, rgba(var(--rgb-purple), 0.88), rgba(var(--rgb-cyan), 0.82));
+    font-size: 15px;
+    letter-spacing: 0.02em;
+}
+
+#cpu-difficulty:hover {
+    background: linear-gradient(135deg, rgba(var(--rgb-purple), 1), rgba(var(--rgb-cyan), 0.95));
+}
