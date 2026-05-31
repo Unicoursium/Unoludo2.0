@@ -23,6 +23,8 @@ let sound_enabled = true;
 let cpu_difficulty = "medium";
 let audio_context = undefined;
 let pending_render_effects = undefined;
+let last_action_was_draw = false;
+const draw_streaks = Object.create(null);
 const CPU_TURN_DELAY = 1600;
 const CPU_DIFFICULTIES = Object.freeze(["easy", "medium", "hard"]);
 const piece_elements = Object.create(null);
@@ -274,6 +276,37 @@ const clear_selection = function () {
     selected_card_id = undefined;
     combo_card_id = undefined;
     target_mode = undefined;
+};
+
+const has_number_six = function (player) {
+    return player.hand.some(function (card) {
+        return card.type === "number" && card.value === 6;
+    });
+};
+
+const increment_draw_streak = function (player_id) {
+    if (draw_streaks[player_id] === undefined) {
+        draw_streaks[player_id] = 0;
+    }
+    draw_streaks[player_id] += 1;
+};
+
+const reset_draw_streak = function (player_id) {
+    draw_streaks[player_id] = 0;
+};
+
+const has_no_planes_on_track = function (player) {
+    return player.planes.every(function (plane) {
+        return plane.status !== "track";
+    });
+};
+
+const check_draw_streak_p6 = function (player_id) {
+    if (draw_streaks[player_id] === 3) {
+        draw_streaks[player_id] = 0;
+        return true;
+    }
+    return false;
 };
 const colour_overlay = document.getElementById("colour-overlay");
 const colour_choice_buttons = document.querySelectorAll(".colour-choice");
@@ -536,6 +569,7 @@ const create_debug_card_from_code = function (code) {
     }
 
     if (
+        normalised === "P6" ||
         normalised === "P7" ||
         normalised === "P8" ||
         normalised === "P9"
@@ -1622,8 +1656,46 @@ const cpu_take_turn = function () {
     const next_state = Unoludo.draw_one_and_end_turn(state);
 
     prepare_render_effects(state, next_state, {});
-    state = next_state;
+
+    if (!has_number_six(player)) {
+        increment_draw_streak(player.id);
+    } else {
+        reset_draw_streak(player.id);
+    }
+
+    if (check_draw_streak_p6(player.id) && has_no_planes_on_track(player)) {
+        const p6_card = Unoludo.create_reward_card(6);
+        const new_players = next_state.players.map(function (p, i) {
+            if (i === player.id) {
+                return Object.freeze({
+                    id: p.id,
+                    name: p.name,
+                    colour: p.colour,
+                    kind: p.kind,
+                    hand: Unoludo.sorted_hand(p.hand.concat([p6_card])),
+                    planes: p.planes
+                });
+            }
+            return p;
+        });
+
+        state = Object.freeze({
+            draw_pile: next_state.draw_pile,
+            discard_pile: next_state.discard_pile,
+            players: Object.freeze(new_players),
+            current_player: next_state.current_player,
+            active_colour: next_state.active_colour,
+            winner: next_state.winner,
+            log: Object.freeze(next_state.log.concat([
+                player.name + " received a P6 reward card (6th draw streak)!"
+            ]))
+        });
+    } else {
+        state = next_state;
+    }
+
     clear_selection();
+    last_action_was_draw = true;
     action_message.textContent = player.name + " drew one card and ended turn.";
     render();
 };
@@ -1702,14 +1774,12 @@ const choose_wild4_option_with_modal = function () {
 const piece_layer = document.getElementById("piece-layer");
 const discard_layer = document.getElementById("discard-layer");
 const hand_cards = document.getElementById("hand-cards");
-const current_player_text = document.getElementById("current-player");
-const top_discard = document.getElementById("top-discard");
-const draw_count_text = document.getElementById("draw-count");
+
 const game_log = document.getElementById("game-log");
 const action_message = document.getElementById("action-message");
 const particle_canvas = document.getElementById("particle-canvas");
 const turn_indicator_label = document.querySelector(".turn-indicator-label");
-const turn_progress_fill = document.querySelector(".turn-progress-fill");
+
 
 const action_message_observer = new MutationObserver(function () {
     action_message.classList.remove("action-message-pop");
@@ -1816,7 +1886,9 @@ const prepare_card_effects_from_next_state = function (next_state) {
 
 const finish_successful_action = function (next_state, message) {
     const final_state = Unoludo.end_turn(next_state);
+    const player = Unoludo.current_player(state);
 
+    reset_draw_streak(player.id);
     prepare_render_effects(
         state,
         final_state,
@@ -2596,6 +2668,66 @@ const render_hand = function () {
 
         hand_cards.appendChild(image);
     });
+
+    if (player.kind !== "cpu") {
+        const draw_image = document.createElement("img");
+
+        draw_image.className = "card-image draw-card-button";
+        draw_image.src = UnoludoAssets.draw_card;
+        draw_image.alt = "Draw and end turn";
+
+        draw_image.addEventListener("click", function () {
+            const next_state = Unoludo.draw_one_and_end_turn(state);
+
+            if (next_state !== undefined) {
+                prepare_render_effects(state, next_state, {});
+
+                if (!has_number_six(player)) {
+                    increment_draw_streak(player.id);
+                } else {
+                    reset_draw_streak(player.id);
+                }
+
+                if (check_draw_streak_p6(player.id) && has_no_planes_on_track(player)) {
+                    const p6_card = Unoludo.create_reward_card(6);
+                    const new_players = next_state.players.map(function (p, i) {
+                        if (i === player.id) {
+                            return Object.freeze({
+                                id: p.id,
+                                name: p.name,
+                                colour: p.colour,
+                                kind: p.kind,
+                                hand: Unoludo.sorted_hand(p.hand.concat([p6_card])),
+                                planes: p.planes
+                            });
+                        }
+                        return p;
+                    });
+
+                    state = Object.freeze({
+                        draw_pile: next_state.draw_pile,
+                        discard_pile: next_state.discard_pile,
+                        players: Object.freeze(new_players),
+                        current_player: next_state.current_player,
+                        active_colour: next_state.active_colour,
+                        winner: next_state.winner,
+                        log: Object.freeze(next_state.log.concat([
+                            player.name + " received a P6 reward card (6th draw streak)!"
+                        ]))
+                    });
+                } else {
+                    state = next_state;
+                }
+
+                clear_selection();
+                last_action_was_draw = true;
+                action_message.textContent = "Drew one card and ended turn.";
+                render();
+            }
+        });
+
+        hand_cards.appendChild(draw_image);
+    }
 };
 
 const render_info = function () {
@@ -2609,13 +2741,7 @@ const render_info = function () {
 
     if (state.winner !== undefined) {
         winner = state.players[state.winner];
-
-        current_player_text.textContent = "Winner: " + winner.name;
         action_message.textContent = winner.name + " wins the game!";
-    } else {
-        current_player_text.textContent = (
-            "Current Player: " + current_player.name
-        );
     }
 
     if (state.log.length === 1) {
@@ -2624,26 +2750,20 @@ const render_info = function () {
         played_card_title.textContent = previous_player.name + " Played:";
     }
 
-    played_card_image.src = UnoludoAssets.card_image(top_card);
-    played_card_image.alt = "Last played card: " + top_card.id;
-
-    draw_count_text.textContent = "Draw Pile: " + state.draw_pile.length;
+    if (last_action_was_draw) {
+        played_card_image.src = UnoludoAssets.draw_card;
+        played_card_image.alt = "Draw card";
+        last_action_was_draw = false;
+    } else {
+        played_card_image.src = UnoludoAssets.card_image(top_card);
+        played_card_image.alt = "Last played card: " + top_card.id;
+    }
 
     if (turn_indicator_label !== null) {
         turn_indicator_label.textContent = current_player.name + "'s Turn";
     }
 
-    if (turn_progress_fill !== null) {
-        const progress = Math.max(
-            8,
-            Math.min(100, Math.round((1 - current_player.hand.length / 12) * 100))
-        );
-        const player_colour = player_colour_hex(current_player.colour);
 
-        turn_progress_fill.style.width = progress + "%";
-        turn_progress_fill.style.background = player_colour;
-        turn_progress_fill.style.boxShadow = "0 0 16px " + player_colour;
-    }
 
     if (game_log !== null) {
         game_log.replaceChildren();
@@ -2728,6 +2848,9 @@ const restart_game = function () {
     rendered_discard_card_id = undefined;
     pending_render_effects = undefined;
     winner_popup_shown = false;
+    Object.keys(draw_streaks).forEach(function (key) {
+        draw_streaks[key] = 0;
+    });
     if (particle_canvas !== null) {
         particle_canvas.replaceChildren();
     }
@@ -2744,9 +2867,49 @@ document.getElementById("draw-end-turn").addEventListener("click", function () {
     const next_state = Unoludo.draw_one_and_end_turn(state);
 
     if (next_state !== undefined) {
+        const player = Unoludo.current_player(state);
+
         prepare_render_effects(state, next_state, {});
-        state = next_state;
+
+        if (!has_number_six(player)) {
+            increment_draw_streak(player.id);
+        } else {
+            reset_draw_streak(player.id);
+        }
+
+        if (check_draw_streak_p6(player.id) && has_no_planes_on_track(player)) {
+            const p6_card = Unoludo.create_reward_card(6);
+            const new_players = next_state.players.map(function (p, i) {
+                if (i === player.id) {
+                    return Object.freeze({
+                        id: p.id,
+                        name: p.name,
+                        colour: p.colour,
+                        kind: p.kind,
+                        hand: Unoludo.sorted_hand(p.hand.concat([p6_card])),
+                        planes: p.planes
+                    });
+                }
+                return p;
+            });
+
+            state = Object.freeze({
+                draw_pile: next_state.draw_pile,
+                discard_pile: next_state.discard_pile,
+                players: Object.freeze(new_players),
+                current_player: next_state.current_player,
+                active_colour: next_state.active_colour,
+                winner: next_state.winner,
+                log: Object.freeze(next_state.log.concat([
+                    player.name + " received a P6 reward card (6th draw streak)!"
+                ]))
+            });
+        } else {
+            state = next_state;
+        }
+
         clear_selection();
+        last_action_was_draw = true;
         action_message.textContent = "Drew one card and ended turn.";
         render();
     }

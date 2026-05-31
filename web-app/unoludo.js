@@ -227,7 +227,7 @@ Unoludo.create_reward_card = function (value) {
 };
 
 Unoludo.create_random_reward_card = function (random = Math.random) {
-    const values = [7, 8, 9];
+    const values = [6, 7, 8, 9];
     const index = Math.floor(random() * values.length);
 
     return Unoludo.create_reward_card(values[index]);
@@ -1169,7 +1169,7 @@ Unoludo.play_reward_card = function (
 
     if (
         card.type !== "reward" ||
-        card.value < 7 ||
+        card.value < 6 ||
         card.value > 9
     ) {
         return undefined;
@@ -1193,11 +1193,20 @@ Unoludo.play_reward_card = function (
         return undefined;
     }
 
-    moved_plane = move_active_plane(
-        target_plane,
-        card.value,
-        target_player.colour
-    );
+    if (target_plane.status === "base") {
+        moved_plane = Object.freeze({
+            status: "track",
+            position: Unoludo.start_positions[target_player.colour],
+            shielded: false,
+            frozen: false
+        });
+    } else {
+        moved_plane = move_active_plane(
+            target_plane,
+            card.value,
+            target_player.colour
+        );
+    }
 
     if (moved_plane === undefined) {
         return undefined;
@@ -1223,10 +1232,10 @@ Unoludo.play_reward_card = function (
         log: Object.freeze(state.log.concat([
             player.name + " played reward "
             + card.value + ", chose " + chosen_colour
-            + ", and moved "
-            + target_player.name + "'s plane "
-            + target_plane_index + " forward by "
-            + card.value + "."
+            + ", and " + (target_plane.status === "base" ? "launched" : "moved")
+            + " " + target_player.name + "'s plane "
+            + target_plane_index
+            + (target_plane.status === "base" ? " to the track." : " forward by " + card.value + ".")
         ]))
     });
 

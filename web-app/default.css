@@ -392,6 +392,7 @@ textarea {
 .board-panel {
     grid-area: board;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: visible;
@@ -406,13 +407,10 @@ textarea {
 }
 
 .turn-indicator {
-    position: absolute;
-    top: var(--space-4);
-    left: 50%;
-    z-index: 8;
-    width: min(68%, 430px);
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto var(--space-2) auto;
     padding: var(--space-2) var(--space-3);
-    transform: translateX(-50%);
     border: 1px solid rgba(var(--rgb-blue), 0.45);
     border-radius: var(--radius-lg);
     background: rgba(var(--rgb-board-glass), 0.64);
@@ -432,22 +430,7 @@ textarea {
     text-transform: uppercase;
 }
 
-.turn-progress-track {
-    height: var(--space-2);
-    overflow: hidden;
-    border-radius: var(--radius-sm);
-    background: rgba(var(--rgb-white), 0.12);
-}
 
-.turn-progress-fill {
-    display: block;
-    width: 62%;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, var(--color-blue), var(--color-green), var(--color-gold));
-    box-shadow: 0 0 16px rgba(var(--rgb-blue), 0.65);
-    animation: turnProgressGlow 1.8s ease-in-out infinite;
-}
 
 #particle-canvas {
     position: absolute;
@@ -1319,8 +1302,7 @@ button:active {
     }
 
     .turn-indicator {
-        top: var(--space-2);
-        width: min(82%, 430px);
+        max-width: min(82%, 430px);
     }
 }
 
@@ -1380,4 +1362,21 @@ button:active {
 
 #cpu-difficulty:hover {
     background: linear-gradient(135deg, rgba(var(--rgb-purple), 1), rgba(var(--rgb-cyan), 0.95));
+}
+
+/* Draw card button in hand */
+.draw-card-button {
+    cursor: pointer;
+    border: 2px dashed rgba(var(--rgb-white), 0.35);
+    border-radius: var(--radius-md);
+    transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.draw-card-button:hover {
+    transform: translateY(-22px) scale(1.04);
+    filter: brightness(1.12);
+    border-color: rgba(var(--rgb-cyan), 0.8);
+    box-shadow:
+        0 0 16px rgba(var(--rgb-cyan), 0.4),
+        0 16px 28px rgba(0, 0, 0, 0.45);
 }

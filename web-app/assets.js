@@ -11,6 +11,10 @@ UnoludoAssets.board = UnoludoAssets.image_root + "Unoludo_Board.png";
 
 UnoludoAssets.finished_marker = UnoludoAssets.image_root + "PS.png";
 
+UnoludoAssets.draw_card = UnoludoAssets.image_root + "P1.png";
+
+UnoludoAssets.reward_6 = UnoludoAssets.image_root + "P6.png";
+
 UnoludoAssets.colour_prefixes = Object.freeze({
     blue: "B",
     green: "G",

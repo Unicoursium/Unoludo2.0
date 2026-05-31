@@ -24,8 +24,6 @@
                 <span class="version-badge">v2.0</span>
             </div>
 
-            <p id="current-player">Current Player: Player</p>
-
             <div class="played-card-panel">
                 <h2 id="played-card-title">Player Played:</h2>
                 <img id="played-card-image" class="played-card-image" src="./assets/img/B6.png" alt="Last played card">
@@ -35,14 +33,12 @@
         </aside>
 
         <section class="board-panel">
-        <div class="board-wrapper" id="board-wrapper">
-            <div id="particle-canvas" aria-hidden="true"></div>
             <div class="turn-indicator" aria-label="Turn indicator">
                 <span class="turn-indicator-label">Player's Turn</span>
-                <span class="turn-progress-track">
-                    <span class="turn-progress-fill"></span>
-                </span>
+
             </div>
+        <div class="board-wrapper" id="board-wrapper">
+            <div id="particle-canvas" aria-hidden="true"></div>
             <img class="board-image" src="./assets/img/Unoludo_Board.png" alt="Unoludo board">
             <div id="discard-layer"></div>
             <div id="piece-layer"></div>
@@ -50,8 +46,6 @@
         </section>
 
         <aside class="right-panel">
-            <h2>Game Info</h2>
-            <p id="draw-count">Draw Pile:</p>
 
             <div class="right-button-group">
                 <button id="reset-demo">Restart</button>
