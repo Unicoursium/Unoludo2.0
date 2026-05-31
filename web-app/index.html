@@ -1,0 +1,126 @@
+<!-- In HTML Comments are written like this -->
+<!-- They can all be removed for your apps -->
+<!-- <!doctype html> This first line tells browsers to expect modern standard html 5 -->
+<!-- <html lang="en-gb"> This is indicates the page is written in British English, useful for accessibility -->
+<!-- <meta charset="utf-8"> This indicates how the file is encoded. utf-8 is standard -->
+<!-- <title>Your Web-app Title</title> All pages need a title, this will be displayed in the browser's title bar -->
+<!-- <link rel="stylesheet" href="default.css"> Import style sheet – default.css -->
+<!-- <link rel="icon" href="./assets/favicon.png"> Import 'Favorites Icon' – favicon.png -->
+<!-- <script type="module" src="main.js"></script> Load the main script. Must be type="module". Have only one of these -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Unoludo</title>
+    <link rel="stylesheet" href="./default.css">
+</head>
+<body>
+    <main class="game-layout">
+        <aside class="left-panel">
+            <h1 class="game-title">
+                <span class="title-uno">UNO</span><span class="title-ludo">LUDO</span>
+            </h1>
+
+            <p id="current-player">Current Player: Player</p>
+
+            <div class="played-card-panel">
+                <h2 id="played-card-title">Player Played:</h2>
+                <img id="played-card-image" class="played-card-image" src="./assets/img/B6.png" alt="Last played card">
+            </div>
+
+            <p id="action-message">Select a card, then select one of your planes.</p>
+        </aside>
+
+        <section class="board-panel">
+        <div class="board-wrapper" id="board-wrapper">
+            <img class="board-image" src="./assets/img/Unoludo_Board.png" alt="Unoludo board">
+            <div id="discard-layer"></div>
+            <div id="piece-layer"></div>
+        </div>
+        </section>
+
+        <aside class="right-panel">
+            <h2>Game Info</h2>
+            <p id="draw-count">Draw Pile:</p>
+
+            <div class="right-button-group">
+                <button id="reset-demo">Restart</button>
+                <button id="debug-move">Move</button>
+                <button id="give-card">Give</button>
+                <button id="draw-end-turn">Draw & End Turn</button>
+
+                <!-- Temporarily disabled -->
+                <!-- <button id="cancel-action">Cancel Selection</button> -->
+
+                <button id="open-log">Log</button>
+                <button id="open-help">Help</button>
+            </div>
+        </aside>
+
+        <section class="hand-panel">
+            <h2>Your Hand</h2>
+            <div id="hand-cards" class="hand-cards"></div>
+        </section>
+    </main>
+
+    <div id="help-overlay" class="help-overlay hidden">
+        <button id="close-help" class="help-close">×</button>
+
+        <button id="help-prev" class="help-nav help-prev">‹</button>
+
+        <div class="help-content">
+            <img id="help-image" class="help-image" src="./assets/img/help1.png" alt="Unoludo help page">
+            <p id="help-page-indicator" class="help-page-indicator">1 / 3</p>
+        </div>
+
+        <button id="help-next" class="help-nav help-next">›</button>
+    </div>
+    
+    <div id="log-overlay" class="log-overlay hidden">
+        <button id="close-log" class="log-close">×</button>
+
+        <div class="log-modal">
+            <h2>Game Log</h2>
+            <ol id="log-overlay-list" class="log-overlay-list"></ol>
+        </div>
+    </div>
+
+    <div id="winner-overlay" class="winner-overlay hidden">
+        <div class="winner-modal">
+            <h2 class="winner-title">
+                <span id="winner-name">Player</span> Won!
+            </h2>
+
+            <button id="winner-restart" class="winner-button">
+                Congratulations!
+            </button>
+        </div>
+    </div>
+
+    <div id="colour-overlay" class="choice-overlay hidden">
+        <div class="choice-modal">
+            <h2 class="choice-title">Choose Color</h2>
+
+            <div class="colour-choice-grid">
+                <button class="colour-choice colour-green" data-colour="green"></button>
+                <button class="colour-choice colour-red" data-colour="red"></button>
+                <button class="colour-choice colour-blue" data-colour="blue"></button>
+                <button class="colour-choice colour-yellow" data-colour="yellow"></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="wild4-option-overlay" class="choice-overlay hidden">
+        <div class="choice-modal wild4-choice-modal">
+            <h2 class="choice-title">Please Select</h2>
+
+            <div class="wild4-choice-buttons">
+                <button id="wild4-draw4-choice">Draw 4 Cards</button>
+                <button id="wild4-move-choice">Move All Active Planes</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
