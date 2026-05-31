@@ -20,9 +20,11 @@ let target_mode = undefined;
 let cpu_timer = undefined;
 let winner_popup_shown = false;
 let sound_enabled = true;
+let cpu_difficulty = "medium";
 let audio_context = undefined;
 let pending_render_effects = undefined;
 const CPU_TURN_DELAY = 1600;
+const CPU_DIFFICULTIES = Object.freeze(["easy", "medium", "hard"]);
 const piece_elements = Object.create(null);
 const previous_piece_snapshots = Object.create(null);
 const draw_end_turn_button = document.getElementById("draw-end-turn");
@@ -231,6 +233,43 @@ if (sound_toggle_button !== null) {
         sound_toggle_button.setAttribute("aria-pressed", String(sound_enabled));
     });
 }
+
+const create_cpu_difficulty_button = function () {
+    const button_group = document.querySelector(".right-button-group");
+    const button = document.createElement("button");
+
+    if (button_group === null) {
+        return;
+    }
+
+    button.id = "cpu-difficulty";
+    button.type = "button";
+    button.textContent = "CPU: Medium";
+    button.setAttribute("aria-label", "CPU difficulty: medium");
+
+    button.addEventListener("click", function () {
+        const next_index = (
+            CPU_DIFFICULTIES.indexOf(cpu_difficulty) + 1
+        ) % CPU_DIFFICULTIES.length;
+
+        cpu_difficulty = CPU_DIFFICULTIES[next_index];
+        button.textContent = (
+            "CPU: " +
+            cpu_difficulty.charAt(0).toUpperCase() +
+            cpu_difficulty.slice(1)
+        );
+        button.setAttribute("aria-label", "CPU difficulty: " + cpu_difficulty);
+    });
+
+    if (sound_toggle_button !== null) {
+        sound_toggle_button.insertAdjacentElement("afterend", button);
+        return;
+    }
+
+    button_group.appendChild(button);
+};
+
+create_cpu_difficulty_button();
 const clear_selection = function () {
     selected_card_id = undefined;
     combo_card_id = undefined;
@@ -643,8 +682,199 @@ const is_active_plane = function (plane) {
     return plane.status === "track" || plane.status === "home";
 };
 
-const choose_colour_for_cpu = function (player) {
+const track_distance = function (from_position, to_position) {
+    return (
+        (to_position - from_position + Unoludo.track_length) %
+        Unoludo.track_length
+    );
+};
+
+const plane_progress = function (player, plane) {
+    const start_position = Unoludo.start_positions[player.colour];
+    const entry_position = Unoludo.home_entry_positions[player.colour];
+    let entry_distance;
+
+    if (plane.status === "finished") {
+        return Unoludo.track_length + Unoludo.home_lane_length + 1;
+    }
+
+    if (plane.status === "home") {
+        entry_distance = track_distance(start_position, entry_position);
+        return entry_distance + 1 + plane.position;
+    }
+
+    if (plane.status === "track") {
+        return track_distance(start_position, plane.position);
+    }
+
+    return -1;
+};
+
+const distance_to_home = function (player, plane) {
+    if (plane.status === "finished") {
+        return 0;
+    }
+
+    if (plane.status === "home") {
+        return Unoludo.home_lane_length - plane.position;
+    }
+
+    if (plane.status === "track") {
+        return (
+            track_distance(
+                plane.position,
+                Unoludo.home_entry_positions[player.colour]
+            ) +
+            Unoludo.home_lane_length +
+            1
+        );
+    }
+
+    return Unoludo.track_length + Unoludo.home_lane_length;
+};
+
+const card_matches_next_colour = function (card, colour) {
+    return (
+        card.colour === colour ||
+        card.colour === "wild"
+    );
+};
+
+const count_active_planes = function (player) {
+    return player.planes.filter(is_active_plane).length;
+};
+
+const can_capture_plane_with_steps = function (
+    attacker_plane,
+    target_plane,
+    steps
+) {
+    if (
+        attacker_plane.status !== "track" ||
+        attacker_plane.frozen ||
+        target_plane.status !== "track" ||
+        target_plane.shielded
+    ) {
+        return false;
+    }
+
+    return track_distance(attacker_plane.position, target_plane.position) === steps;
+};
+
+const player_can_capture_plane = function (
+    attacker,
+    target_plane
+) {
+    if (target_plane.status !== "track" || target_plane.shielded) {
+        return false;
+    }
+
+    return attacker.hand.some(function (card) {
+        let steps;
+
+        if (card.type === "number" && card.value >= 1 && card.value <= 6) {
+            steps = card.value;
+        } else if (card.type === "wild") {
+            steps = 6;
+        } else {
+            return false;
+        }
+
+        return attacker.planes.some(function (attacker_plane) {
+            return can_capture_plane_with_steps(
+                attacker_plane,
+                target_plane,
+                steps
+            );
+        });
+    });
+};
+
+const plane_is_threatened = function (board_state, player_id, plane_index) {
+    const player = board_state.players[player_id];
+    const plane = player.planes[plane_index];
+
+    return board_state.players.some(function (opponent) {
+        if (opponent.id === player_id) {
+            return false;
+        }
+
+        return player_can_capture_plane(opponent, plane);
+    });
+};
+
+const opponent_near_own_plane = function (own_plane, opponent_plane) {
+    if (own_plane.status !== "track" || opponent_plane.status !== "track") {
+        return false;
+    }
+
+    return track_distance(opponent_plane.position, own_plane.position) <= 3;
+};
+
+const count_threatened_planes = function (board_state, player_id) {
+    const player = board_state.players[player_id];
+
+    return player.planes.filter(function (plane, plane_index) {
+        return is_active_plane(plane) && plane_is_threatened(
+            board_state,
+            player_id,
+            plane_index
+        );
+    }).length;
+};
+
+const capture_count_against_player = function (
+    before_state,
+    after_state,
+    player_id
+) {
+    let count = 0;
+
+    before_state.players[player_id].planes.forEach(function (before_plane, index) {
+        const after_plane = after_state.players[player_id].planes[index];
+
+        if (
+            before_plane.status !== "base" &&
+            before_plane.status !== "finished" &&
+            after_plane.status === "base"
+        ) {
+            count += 1;
+        }
+    });
+
+    return count;
+};
+
+const score_colour_for_cpu = function (player, colour) {
+    let score = 0;
+
+    player.hand.forEach(function (card) {
+        if (card_matches_next_colour(card, colour)) {
+            score += 4;
+        }
+
+        if (card.colour === colour && card.type !== "number") {
+            score += 2;
+        }
+    });
+
+    player.planes.forEach(function (plane) {
+        if (is_active_plane(plane)) {
+            score += 1;
+        }
+    });
+
+    return score;
+};
+
+const choose_colour_for_cpu = function (player, board_state) {
     const counts = {
+        blue: 0,
+        green: 0,
+        red: 0,
+        yellow: 0
+    };
+    const colour_scores = {
         blue: 0,
         green: 0,
         red: 0,
@@ -659,8 +889,42 @@ const choose_colour_for_cpu = function (player) {
         }
     });
 
-    Object.keys(counts).forEach(function (colour) {
-        if (counts[colour] > counts[best_colour]) {
+    Object.keys(colour_scores).forEach(function (colour) {
+        colour_scores[colour] = (
+            score_colour_for_cpu(player, colour) +
+            counts[colour]
+        );
+
+        if (board_state !== undefined) {
+            board_state.players.forEach(function (opponent) {
+                if (opponent.id === player.id) {
+                    return;
+                }
+
+                opponent.hand.forEach(function (card) {
+                    if (card_matches_next_colour(card, colour)) {
+                        colour_scores[colour] -= 1.5;
+                    }
+                });
+
+                opponent.planes.forEach(function (plane) {
+                    if (
+                        plane.status === "track" &&
+                        distance_to_home(opponent, plane) <= 8
+                    ) {
+                        colour_scores[colour] -= 0.5;
+                    }
+                });
+            });
+        }
+
+        if (
+            colour_scores[colour] > colour_scores[best_colour] ||
+            (
+                colour_scores[colour] === colour_scores[best_colour] &&
+                counts[colour] > counts[best_colour]
+            )
+        ) {
             best_colour = colour;
         }
     });
@@ -668,8 +932,235 @@ const choose_colour_for_cpu = function (player) {
     return best_colour;
 };
 
+const move_reason_from_score = function (details) {
+    if (details.finished) {
+        return "finished a plane";
+    }
+
+    if (details.captures > 0) {
+        return "captured an opponent plane";
+    }
+
+    if (details.shielded_threat) {
+        return "shielded a threatened plane";
+    }
+
+    if (details.prevented_threat) {
+        return "protected a plane from capture";
+    }
+
+    if (details.frozen_planes > 0) {
+        return "froze active opponent planes";
+    }
+
+    if (details.reversed_close_plane) {
+        return "pushed back a plane near home";
+    }
+
+    if (details.launched) {
+        return "launched a plane";
+    }
+
+    if (details.setup_capture) {
+        return "set up a capture";
+    }
+
+    if (details.draw_pressure) {
+        return "built card pressure while behind";
+    }
+
+    if (details.progress > 0) {
+        return "advanced toward home";
+    }
+
+    return "kept the best position";
+};
+
+const score_cpu_move = function (before_state, move) {
+    const player = before_state.players[move.player_id];
+    const after_player = move.state.players[move.player_id];
+    const before_threats = count_threatened_planes(before_state, player.id);
+    const after_threats = count_threatened_planes(move.state, player.id);
+    const details = {
+        captures: 0,
+        frozen_planes: 0,
+        progress: 0,
+        draw_pressure: false,
+        finished: false,
+        launched: false,
+        prevented_threat: after_threats < before_threats,
+        reversed_close_plane: false,
+        setup_capture: false,
+        shielded_threat: false
+    };
+    let score = 0;
+
+    before_state.players.forEach(function (target_player) {
+        if (target_player.id === player.id) {
+            return;
+        }
+
+        target_player.planes.forEach(function (before_plane, plane_index) {
+            const after_plane = move.state
+                .players[target_player.id]
+                .planes[plane_index];
+            const close_to_home = distance_to_home(target_player, before_plane);
+            const before_progress = plane_progress(target_player, before_plane);
+            const after_progress = plane_progress(target_player, after_plane);
+
+            if (
+                before_plane.status !== "base" &&
+                before_plane.status !== "finished" &&
+                after_plane.status === "base"
+            ) {
+                details.captures += 1;
+                score += 15 + Math.max(0, 12 - close_to_home);
+            }
+
+            if (
+                after_plane.frozen &&
+                !before_plane.frozen &&
+                is_active_plane(before_plane)
+            ) {
+                details.frozen_planes += count_active_planes(target_player);
+                score += 8 * count_active_planes(target_player);
+            }
+
+            if (move.kind === "reverse" && after_progress < before_progress) {
+                score += 10 + Math.max(0, 10 - close_to_home);
+                if (close_to_home <= 10) {
+                    details.reversed_close_plane = true;
+                }
+            }
+        });
+    });
+
+    player.planes.forEach(function (before_plane, plane_index) {
+        const after_plane = after_player.planes[plane_index];
+        const before_progress = plane_progress(player, before_plane);
+        const after_progress = plane_progress(player, after_plane);
+        const gained = Math.max(0, after_progress - before_progress);
+
+        if (before_plane.status === "base" && after_plane.status === "track") {
+            details.launched = true;
+            score += 8;
+        }
+
+        if (before_plane.status !== "finished" && after_plane.status === "finished") {
+            details.finished = true;
+            score += 25;
+        }
+
+        if (before_plane.status === "home" || after_plane.status === "home") {
+            score += gained * 5;
+        } else {
+            score += gained * 3;
+        }
+
+        details.progress += gained;
+
+        if (
+            before_plane.shielded !== true &&
+            after_plane.shielded === true &&
+            plane_is_threatened(before_state, player.id, plane_index)
+        ) {
+            details.shielded_threat = true;
+            score += 22;
+        }
+
+        if (
+            plane_is_threatened(before_state, player.id, plane_index) &&
+            !plane_is_threatened(move.state, player.id, plane_index)
+        ) {
+            score += 12;
+        }
+    });
+
+    if (move.kind === "zero") {
+        score += 10;
+    }
+
+    if (move.kind === "draw2" && player.hand.length < 4) {
+        details.draw_pressure = true;
+        score += 6;
+    }
+
+    if (move.kind === "wild4" && move.option === "advance_all") {
+        score -= capture_count_against_player(
+            before_state,
+            move.state,
+            player.id
+        ) * 20;
+    }
+
+    before_state.players.forEach(function (opponent) {
+        if (opponent.id === player.id) {
+            return;
+        }
+
+        move.state.players[opponent.id].planes.forEach(function (opponent_plane) {
+            if (opponent_plane.status !== "track") {
+                return;
+            }
+
+            after_player.planes.forEach(function (own_plane) {
+                const has_capture_card = after_player.hand.some(function (card) {
+                    return (
+                        card.type === "number" &&
+                        card.value >= 1 &&
+                        card.value <= 6 &&
+                        own_plane.status === "track" &&
+                        track_distance(own_plane.position, opponent_plane.position) === card.value
+                    );
+                });
+
+                if (has_capture_card) {
+                    details.setup_capture = true;
+                    score += 7;
+                }
+            });
+        });
+    });
+
+    before_state.players.forEach(function (opponent) {
+        if (opponent.id === player.id) {
+            return;
+        }
+
+        opponent.planes.forEach(function (opponent_plane) {
+            player.planes.forEach(function (own_plane) {
+                if (opponent_near_own_plane(own_plane, opponent_plane)) {
+                    score += (
+                        move.kind === "skip" || move.kind === "reverse"
+                        ? 6
+                        : 0
+                    );
+                }
+            });
+        });
+    });
+
+    score += choose_colour_for_cpu(after_player, move.state) === move.chosen_colour ? 2 : 0;
+
+    move.score = score;
+    move.reason = move_reason_from_score(details);
+
+    return move;
+};
+
+const create_cpu_move = function (before_state, player, next_state, kind, message, extra) {
+    const move = Object.assign({
+        player_id: player.id,
+        state: next_state,
+        kind: kind,
+        message: message
+    }, extra || {});
+
+    return score_cpu_move(before_state, move);
+};
+
 const find_cpu_number_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (card) {
         if (
@@ -681,7 +1172,7 @@ const find_cpu_number_move = function (cpu_state, player) {
             return false;
         }
 
-        return player.planes.some(function (plane, plane_index) {
+        player.planes.forEach(function (plane, plane_index) {
             const next_state = Unoludo.play_number_card(
                 cpu_state,
                 card.id,
@@ -689,22 +1180,25 @@ const find_cpu_number_move = function (cpu_state, player) {
             );
 
             if (next_state !== undefined) {
-                result = {
-                    state: next_state,
-                    message: player.name + " played a number card."
-                };
-                return true;
+                moves.push(create_cpu_move(
+                    cpu_state,
+                    player,
+                    next_state,
+                    "number",
+                    player.name + " played a number card",
+                    {card: card, plane_index: plane_index}
+                ));
             }
-
-            return false;
         });
+
+        return false;
     });
 
-    return result;
+    return moves;
 };
 
 const find_cpu_zero_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (card) {
         if (
@@ -715,7 +1209,7 @@ const find_cpu_zero_move = function (cpu_state, player) {
             return false;
         }
 
-        return player.planes.some(function (plane, plane_index) {
+        player.planes.forEach(function (plane, plane_index) {
             const next_state = Unoludo.play_zero_card(
                 cpu_state,
                 card.id,
@@ -723,22 +1217,25 @@ const find_cpu_zero_move = function (cpu_state, player) {
             );
 
             if (next_state !== undefined) {
-                result = {
-                    state: next_state,
-                    message: player.name + " played a shield card."
-                };
-                return true;
+                moves.push(create_cpu_move(
+                    cpu_state,
+                    player,
+                    next_state,
+                    "zero",
+                    player.name + " played a shield card",
+                    {card: card, plane_index: plane_index}
+                ));
             }
-
-            return false;
         });
+
+        return false;
     });
 
-    return result;
+    return moves;
 };
 
 const find_cpu_draw2_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (card) {
         let next_state;
@@ -753,21 +1250,24 @@ const find_cpu_draw2_move = function (cpu_state, player) {
         next_state = Unoludo.play_draw2_card(cpu_state, card.id);
 
         if (next_state !== undefined) {
-            result = {
-                state: next_state,
-                message: player.name + " played +2."
-            };
-            return true;
+            moves.push(create_cpu_move(
+                cpu_state,
+                player,
+                next_state,
+                "draw2",
+                player.name + " played +2",
+                {card: card}
+            ));
         }
 
         return false;
     });
 
-    return result;
+    return moves;
 };
 
 const find_cpu_skip_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (card) {
         if (
@@ -777,12 +1277,12 @@ const find_cpu_skip_move = function (cpu_state, player) {
             return false;
         }
 
-        return cpu_state.players.some(function (target_player) {
+        cpu_state.players.forEach(function (target_player) {
             if (target_player.id === player.id) {
                 return false;
             }
 
-            return target_player.planes.some(function (plane, plane_index) {
+            target_player.planes.forEach(function (plane, plane_index) {
                 const next_state = Unoludo.play_skip_card(
                     cpu_state,
                     card.id,
@@ -791,29 +1291,33 @@ const find_cpu_skip_move = function (cpu_state, player) {
                 );
 
                 if (next_state !== undefined) {
-                    result = {
-                        state: next_state,
-                        message: player.name + " played Skip."
-                    };
-                    return true;
+                    moves.push(create_cpu_move(
+                        cpu_state,
+                        player,
+                        next_state,
+                        "skip",
+                        player.name + " played Skip",
+                        {
+                            card: card,
+                            target_player_id: target_player.id,
+                            plane_index: plane_index
+                        }
+                    ));
                 }
-
-                return false;
             });
         });
+
+        return false;
     });
 
-    return result;
+    return moves;
 };
 
 const find_cpu_reverse_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (reverse_card) {
-        if (
-            reverse_card.type !== "reverse" ||
-            !Unoludo.can_play_card(reverse_card, cpu_state)
-        ) {
+        if (reverse_card.type !== "reverse") {
             return false;
         }
 
@@ -827,12 +1331,12 @@ const find_cpu_reverse_move = function (cpu_state, player) {
                 return false;
             }
 
-            return cpu_state.players.some(function (target_player) {
+            cpu_state.players.forEach(function (target_player) {
                 if (target_player.id === player.id) {
                     return false;
                 }
 
-                return target_player.planes.some(function (plane, plane_index) {
+                target_player.planes.forEach(function (plane, plane_index) {
                     const next_state = Unoludo.play_reverse_combo(
                         cpu_state,
                         reverse_card.id,
@@ -842,24 +1346,34 @@ const find_cpu_reverse_move = function (cpu_state, player) {
                     );
 
                     if (next_state !== undefined) {
-                        result = {
-                            state: next_state,
-                            message: player.name + " played Reverse combo."
-                        };
-                        return true;
+                        moves.push(create_cpu_move(
+                            cpu_state,
+                            player,
+                            next_state,
+                            "reverse",
+                            player.name + " played Reverse combo",
+                            {
+                                card: reverse_card,
+                                number_card: number_card,
+                                target_player_id: target_player.id,
+                                plane_index: plane_index
+                            }
+                        ));
                     }
-
-                    return false;
                 });
             });
+
+            return false;
         });
+
+        return false;
     });
 
-    return result;
+    return moves;
 };
 
 const find_cpu_wild_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (wild_card) {
         if (
@@ -878,40 +1392,54 @@ const find_cpu_wild_move = function (cpu_state, player) {
                 return false;
             }
 
-            return cpu_state.players.some(function (target_player) {
-                return target_player.planes.some(function (plane, plane_index) {
+            cpu_state.players.forEach(function (target_player) {
+                target_player.planes.forEach(function (plane, plane_index) {
                     const next_state = Unoludo.play_wild_combo(
                         cpu_state,
                         wild_card.id,
                         number_card.id,
                         target_player.id,
-                        plane_index,
-                        choose_colour_for_cpu(player)
+                        plane_index
                     );
 
                     if (next_state !== undefined) {
-                        result = {
-                            state: next_state,
-                            message: player.name + " played Wild combo."
-                        };
-                        return true;
+                        moves.push(create_cpu_move(
+                            cpu_state,
+                            player,
+                            next_state,
+                            "wild",
+                            player.name + " played Wild combo",
+                            {
+                                card: wild_card,
+                                number_card: number_card,
+                                target_player_id: target_player.id,
+                                plane_index: plane_index,
+                                chosen_colour: number_card.colour
+                            }
+                        ));
                     }
-
-                    return false;
                 });
             });
+
+            return false;
         });
+
+        return false;
     });
 
-    return result;
+    return moves;
 };
 
 const find_cpu_wild4_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (card) {
         const has_active_plane = player.planes.some(is_active_plane);
-        let next_state;
+        const choices = (
+            has_active_plane
+            ? ["advance_all", "draw4"]
+            : ["draw4"]
+        );
 
         if (
             card.type !== "wild4" ||
@@ -920,102 +1448,152 @@ const find_cpu_wild4_move = function (cpu_state, player) {
             return false;
         }
 
-        next_state = Unoludo.play_wild4_card(
-            cpu_state,
-            card.id,
-            (
-                has_active_plane
-                ? "advance_all"
-                : "draw4"
-            ),
-            choose_colour_for_cpu(player)
-        );
+        choices.forEach(function (choice) {
+            const colour = choose_colour_for_cpu(player, cpu_state);
+            const next_state = Unoludo.play_wild4_card(
+                cpu_state,
+                card.id,
+                choice,
+                colour
+            );
 
-        if (next_state !== undefined) {
-            result = {
-                state: next_state,
-                message: player.name + " played Wild +4."
-            };
-            return true;
-        }
+            if (next_state !== undefined) {
+                moves.push(create_cpu_move(
+                    cpu_state,
+                    player,
+                    next_state,
+                    "wild4",
+                    player.name + " played Wild +4",
+                    {card: card, option: choice, chosen_colour: colour}
+                ));
+            }
+        });
 
         return false;
     });
 
-    return result;
+    return moves;
 };
 
 const find_cpu_reward_move = function (cpu_state, player) {
-    let result;
+    const moves = [];
 
     player.hand.some(function (card) {
         if (card.type !== "reward") {
             return false;
         }
 
-        player.planes.some(function (plane, plane_index) {
+        player.planes.forEach(function (plane, plane_index) {
             const next_state = Unoludo.play_reward_card(
                 cpu_state,
                 card.id,
                 player.id,
                 plane_index,
-                choose_colour_for_cpu(player)
+                choose_colour_for_cpu(player, cpu_state)
             );
 
             if (next_state !== undefined) {
-                result = {
-                    state: next_state,
-                    message: player.name + " played reward " + card.value + "."
-                };
-                return true;
+                moves.push(create_cpu_move(
+                    cpu_state,
+                    player,
+                    next_state,
+                    "reward",
+                    player.name + " played reward " + card.value,
+                    {card: card, target_player_id: player.id, plane_index: plane_index}
+                ));
             }
-
-            return false;
         });
 
-        if (result !== undefined) {
-            return true;
-        }
-
-        return cpu_state.players.some(function (target_player) {
-            return target_player.planes.some(function (plane, plane_index) {
+        cpu_state.players.forEach(function (target_player) {
+            target_player.planes.forEach(function (plane, plane_index) {
                 const next_state = Unoludo.play_reward_card(
                     cpu_state,
                     card.id,
                     target_player.id,
                     plane_index,
-                    choose_colour_for_cpu(player)
+                    choose_colour_for_cpu(player, cpu_state)
                 );
 
                 if (next_state !== undefined) {
-                    result = {
-                        state: next_state,
-                        message: player.name + " played reward " + card.value + "."
-                    };
-                    return true;
+                    moves.push(create_cpu_move(
+                        cpu_state,
+                        player,
+                        next_state,
+                        "reward",
+                        player.name + " played reward " + card.value,
+                        {
+                            card: card,
+                            target_player_id: target_player.id,
+                            plane_index: plane_index
+                        }
+                    ));
                 }
-
-                return false;
             });
         });
+
+        return false;
     });
 
-    return result;
+    return moves;
+};
+
+const all_cpu_moves = function (cpu_state, player) {
+    return [].concat(
+        find_cpu_reward_move(cpu_state, player),
+        find_cpu_number_move(cpu_state, player),
+        find_cpu_draw2_move(cpu_state, player),
+        find_cpu_skip_move(cpu_state, player),
+        find_cpu_reverse_move(cpu_state, player),
+        find_cpu_wild_move(cpu_state, player),
+        find_cpu_wild4_move(cpu_state, player),
+        find_cpu_zero_move(cpu_state, player)
+    );
+};
+
+const select_cpu_move = function (moves) {
+    if (moves.length === 0) {
+        return undefined;
+    }
+
+    if (cpu_difficulty === "easy") {
+        return moves[Math.floor(Math.random() * moves.length)];
+    }
+
+    return moves.reduce(function (best_move, move) {
+        const move_score = (
+            cpu_difficulty === "medium"
+            ? move.score * (0.8 + Math.random() * 0.4)
+            : move.score
+        );
+        const best_score = (
+            best_move.adjusted_score !== undefined
+            ? best_move.adjusted_score
+            : (
+                cpu_difficulty === "medium"
+                ? best_move.score * (0.8 + Math.random() * 0.4)
+                : best_move.score
+            )
+        );
+
+        move.adjusted_score = move_score;
+        best_move.adjusted_score = best_score;
+
+        return move_score > best_score ? move : best_move;
+    });
 };
 
 const find_cpu_action = function (cpu_state) {
     const player = Unoludo.current_player(cpu_state);
+    const move = select_cpu_move(all_cpu_moves(cpu_state, player));
 
-    return (
-        find_cpu_reward_move(cpu_state, player) ||
-        find_cpu_number_move(cpu_state, player) ||
-        find_cpu_draw2_move(cpu_state, player) ||
-        find_cpu_skip_move(cpu_state, player) ||
-        find_cpu_reverse_move(cpu_state, player) ||
-        find_cpu_wild_move(cpu_state, player) ||
-        find_cpu_wild4_move(cpu_state, player) ||
-        find_cpu_zero_move(cpu_state, player)
-    );
+    if (move === undefined) {
+        return undefined;
+    }
+
+    return {
+        state: move.state,
+        message: move.message + " because it " + move.reason + "."
+    };
 };
 
 const cpu_take_turn = function () {
