@@ -13,6 +13,7 @@
     var onStateChangeCallback = null;
     var onTurnChangeCallback = null;
     var isProcessing = false;
+    var lastSyncedVersion = null;
 
     function init(roomIdParam, playerIndex) {
         destroy();
@@ -27,6 +28,11 @@
         gameStateListener = roomRef.child("gameState").on("value", function (snapshot) {
             var state = snapshot.val();
             if (state && onStateChangeCallback) {
+                lastSyncedVersion = (
+                    state.version === undefined
+                    ? 0
+                    : state.version
+                );
                 onStateChangeCallback(state);
             }
         });
@@ -44,7 +50,11 @@
     function setInitialState(state) {
         if (!roomRef) return Promise.reject("No room");
         var flatState = flattenState(state);
-        return roomRef.child("gameState").set(flatState).then(function () {
+        flatState.version = 0;
+        lastSyncedVersion = 0;
+        return firebaseReady.then(function () {
+            return roomRef.child("gameState").set(flatState);
+        }).then(function () {
             return roomRef.update({
                 currentTurn: 0,
                 status: "playing"
@@ -72,9 +82,62 @@
     function updateGameState(newState, nextTurn) {
         if (!roomRef) return Promise.reject("No room");
         var flatState = flattenState(newState);
-        return roomRef.update({
-            gameState: flatState,
-            currentTurn: nextTurn
+        var expectedVersion = (
+            lastSyncedVersion === null
+            ? 0
+            : lastSyncedVersion
+        );
+        var nextVersion = expectedVersion + 1;
+
+        flatState.version = nextVersion;
+
+        return firebaseReady.then(function () {
+            return new Promise(function (resolve, reject) {
+                roomRef.child("gameState").transaction(function (remoteState) {
+                    var remoteVersion;
+
+                    if (!remoteState) {
+                        return;
+                    }
+
+                    remoteVersion = (
+                        remoteState.version === undefined
+                        ? 0
+                        : remoteState.version
+                    );
+
+                    if (remoteVersion !== expectedVersion) {
+                        return;
+                    }
+
+                    return flatState;
+                }, function (error, committed, snapshot) {
+                    if (error) {
+                        reject(error);
+                        return;
+                    }
+
+                    if (!committed) {
+                        resolve({
+                            committed: false,
+                            expectedVersion: expectedVersion,
+                            remoteState: snapshot ? snapshot.val() : undefined
+                        });
+                        return;
+                    }
+
+                    lastSyncedVersion = nextVersion;
+
+                    roomRef.update({
+                        currentTurn: nextTurn
+                    }).then(function () {
+                        resolve({
+                            committed: true,
+                            version: nextVersion
+                        });
+                    }).catch(reject);
+                }, false);
+            });
         });
     }
 
@@ -84,6 +147,7 @@
 
     function getMyIndex() { return myIndex; }
     function getRoomId() { return roomId; }
+    function getSyncedVersion() { return lastSyncedVersion; }
 
     // ---- Flatten state for Firebase (arrays -> objects with numeric keys) ----
     function removeUndefined(obj) {
@@ -188,6 +252,7 @@
         }
         gameStateListener = null;
         lastActionListener = null;
+        lastSyncedVersion = null;
         roomRef = null;
         roomId = null;
         myIndex = null;
@@ -201,6 +266,7 @@
         isMyTurn: isMyTurn,
         getMyIndex: getMyIndex,
         getRoomId: getRoomId,
+        getSyncedVersion: getSyncedVersion,
         unflattenState: unflattenState,
         destroy: destroy,
         onStateChange: function (callback) { onStateChangeCallback = callback; },

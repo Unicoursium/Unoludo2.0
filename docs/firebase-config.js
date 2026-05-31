@@ -16,3 +16,15 @@ firebase.initializeApp(firebaseConfig);
 
 // Database reference
 const db = firebase.database();
+
+// Lightweight identity for client-side multiplayer security rules.
+const firebaseReady = firebase.auth().signInAnonymously().then(function () {
+    return firebase.auth().currentUser;
+}).catch(function (error) {
+    console.error("Firebase anonymous sign-in failed:", error);
+    throw error;
+});
+
+function getFirebaseUser() {
+    return firebase.auth().currentUser;
+}

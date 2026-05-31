@@ -152,46 +152,69 @@
     function addCpuPlayer() {
         if (!isHost() || !currentRoomId) return;
 
-        var roomRef = db.ref("rooms/" + currentRoomId);
-
-        roomRef.transaction(function (room) {
-            var keys;
-            var usedSlots;
-            var newSlot = -1;
+        firebaseReady.then(function (user) {
+            var roomRef = db.ref("rooms/" + currentRoomId);
             var colourNames = ["Blue", "Green", "Red", "Yellow"];
-            var i;
 
-            if (!room || room.status !== "waiting") {
-                return;
-            }
+            roomRef.once("value", function (snapshot) {
+                var room = snapshot.val();
+                var players;
+                var keys;
+                var usedSlots;
+                var newSlot = -1;
+                var i;
 
-            room.players = room.players || {};
-            keys = Object.keys(room.players);
-
-            if (keys.length >= 4) {
-                return;
-            }
-
-            usedSlots = keys.map(function (k) { return parseInt(k); });
-            for (i = 0; i < 4; i++) {
-                if (usedSlots.indexOf(i) === -1) {
-                    newSlot = i;
-                    break;
+                if (!room || room.status !== "waiting") {
+                    return;
                 }
-            }
 
-            if (newSlot === -1) {
-                return;
-            }
+                players = room.players || {};
+                keys = Object.keys(players);
 
-            room.players[newSlot] = {
-                name: "CPU " + colourNames[newSlot],
-                isCPU: true,
-                addedAt: Date.now()
-            };
-            room.playersCount = keys.length + 1;
+                if (keys.length >= 4) {
+                    return;
+                }
 
-            return room;
+                usedSlots = keys.map(function (k) { return parseInt(k); });
+                for (i = 0; i < 4; i++) {
+                    if (usedSlots.indexOf(i) === -1) {
+                        newSlot = i;
+                        break;
+                    }
+                }
+
+                if (newSlot === -1) {
+                    return;
+                }
+
+                roomRef.child("players/" + newSlot).transaction(function (slot) {
+                    if (slot !== null) {
+                        return;
+                    }
+
+                    return {
+                        name: "CPU " + colourNames[newSlot],
+                        uid: user.uid,
+                        isCPU: true,
+                        addedAt: Date.now()
+                    };
+                }, function (error, committed) {
+                    if (!error && committed) {
+                        updatePlayersCount(currentRoomId);
+                    }
+                });
+            });
+        }).catch(function () {
+            alert("Could not sign in to Firebase. Please refresh and try again.");
+        });
+    }
+
+    function updatePlayersCount(roomId) {
+        db.ref("rooms/" + roomId + "/players").once("value", function (snapshot) {
+            var players = snapshot.val() || {};
+            db.ref("rooms/" + roomId + "/playersCount").set(
+                Object.keys(players).length
+            );
         });
     }
 
@@ -199,12 +222,11 @@
     function removeCpuPlayer(slotKey) {
         if (!isHost() || !currentRoomId) return;
 
-        var roomRef = db.ref("rooms/" + currentRoomId);
-        var updates = {};
-        updates["players/" + slotKey] = null;
-        updates["playersCount"] = Object.keys(currentPlayers).length - 1;
-
-        roomRef.update(updates);
+        db.ref("rooms/" + currentRoomId + "/players/" + slotKey)
+            .remove()
+            .then(function () {
+                updatePlayersCount(currentRoomId);
+            });
     }
 
     // ---- Create room ----
@@ -212,35 +234,42 @@
         var name = playerNameInput.value.trim() || "Player 1";
         var code = generateRoomCode();
 
-        var roomRef = db.ref("rooms/" + code);
+        firebaseReady.then(function (user) {
+            var roomRef = db.ref("rooms/" + code);
 
-        roomRef.once("value", function (snapshot) {
-            if (snapshot.exists()) {
-                createRoom();
-                return;
-            }
-
-            var roomData = {
-                status: "waiting",
-                hostIndex: 0,
-                createdAt: firebase.database.ServerValue.TIMESTAMP,
-                playersCount: 1,
-                players: {
-                    "0": {
-                        name: name,
-                        joinedAt: firebase.database.ServerValue.TIMESTAMP
-                    }
+            roomRef.once("value", function (snapshot) {
+                if (snapshot.exists()) {
+                    createRoom();
+                    return;
                 }
-            };
 
-            roomRef.set(roomData).then(function () {
-                currentRoomId = code;
-                currentPlayerIndex = 0;
-                roomCodeValue.textContent = code;
-                showScreen(roomScreen);
-                roomStatus.textContent = "Waiting for players...";
-                startRoomListener(code);
+                var roomData = {
+                    status: "waiting",
+                    hostUid: user.uid,
+                    hostIndex: 0,
+                    createdAt: firebase.database.ServerValue.TIMESTAMP,
+                    playersCount: 1,
+                    players: {
+                        "0": {
+                            name: name,
+                            uid: user.uid,
+                            joinedAt: firebase.database.ServerValue.TIMESTAMP
+                        }
+                    }
+                };
+
+                roomRef.set(roomData).then(function () {
+                    currentRoomId = code;
+                    currentPlayerIndex = 0;
+                    currentHostIndex = 0;
+                    roomCodeValue.textContent = code;
+                    showScreen(roomScreen);
+                    roomStatus.textContent = "Waiting for players...";
+                    startRoomListener(code);
+                });
             });
+        }).catch(function () {
+            alert("Could not sign in to Firebase. Please refresh and try again.");
         });
     }
 
@@ -248,70 +277,104 @@
     function joinRoom() {
         var code = roomCodeInput.value.trim();
         var name = playerNameInput.value.trim() || "Player 2";
+        var joinToken = (
+            Date.now().toString(36) +
+            "-" +
+            Math.random().toString(36).slice(2)
+        );
 
         if (!isValidRoomCode(code)) {
             alert("Please enter a valid 4-digit code.");
             return;
         }
 
-        var roomRef = db.ref("rooms/" + code);
+        firebaseReady.then(function (user) {
+            var roomRef = db.ref("rooms/" + code);
 
-        roomRef.transaction(function (room) {
-            var players;
-            var keys;
-            var usedSlots;
-            var newIndex = -1;
-            var i;
+            roomRef.once("value", function (roomSnap) {
+                var existingRoom = roomSnap.val();
 
-            if (!room || room.status !== "waiting") {
-                return;
-            }
-
-            players = room.players || {};
-            keys = Object.keys(players);
-
-            if (keys.length >= 4) {
-                return;
-            }
-
-            usedSlots = keys.map(function (k) { return parseInt(k); });
-            for (i = 0; i < 4; i++) {
-                if (usedSlots.indexOf(i) === -1) {
-                    newIndex = i;
-                    break;
+                if (!existingRoom) {
+                    alert("Room not found. Check the code and try again.");
+                    return;
                 }
-            }
 
-            if (newIndex === -1) {
-                return;
-            }
+                if (existingRoom.status !== "waiting") {
+                    alert("This game has already started.");
+                    return;
+                }
 
-            room.players = players;
-            room.players[newIndex] = {
-                name: name,
-                joinedAt: Date.now()
-            };
-            room.playersCount = keys.length + 1;
-            currentPlayerIndex = newIndex;
+                var players = existingRoom.players || {};
+                var keys = Object.keys(players);
+                var usedSlots;
+                var newIndex = -1;
+                var i;
 
-            return room;
-        }, function (error, committed) {
-            if (error) {
-                alert("Could not join room. Please try again.");
-                currentPlayerIndex = null;
-                return;
-            }
+                if (keys.length >= 4) {
+                    alert("Room is full.");
+                    return;
+                }
 
-            if (!committed || currentPlayerIndex === null) {
-                alert("Room is unavailable, full, or already started.");
-                return;
-            }
+                usedSlots = keys.map(function (k) { return parseInt(k); });
+                for (i = 0; i < 4; i++) {
+                    if (usedSlots.indexOf(i) === -1) {
+                        newIndex = i;
+                        break;
+                    }
+                }
 
-            currentRoomId = code;
-            roomCodeValue.textContent = code;
-            showScreen(roomScreen);
-            roomStatus.textContent = "Waiting for players...";
-            startRoomListener(code);
+                if (newIndex === -1) {
+                    alert("Room is full.");
+                    return;
+                }
+
+                roomRef.child("players/" + newIndex).transaction(function (slot) {
+                    if (slot !== null) {
+                        return;
+                    }
+
+                    return {
+                        name: name,
+                        uid: user.uid,
+                        joinToken: joinToken,
+                        joinedAt: Date.now()
+                    };
+                }, function (error, committed, snapshot) {
+                    var player;
+
+                    if (error) {
+                        alert("Could not join room. Please try again.");
+                        return;
+                    }
+
+                    if (!committed) {
+                        alert("That player slot was just taken. Please try again.");
+                        return;
+                    }
+
+                    player = snapshot.val();
+
+                    if (!player || player.joinToken !== joinToken) {
+                        alert("Could not confirm your player slot. Please try again.");
+                        return;
+                    }
+
+                    currentRoomId = code;
+                    currentPlayerIndex = newIndex;
+                    currentHostIndex = (
+                        existingRoom.hostIndex === undefined
+                        ? 0
+                        : existingRoom.hostIndex
+                    );
+                    updatePlayersCount(code);
+                    roomCodeValue.textContent = code;
+                    showScreen(roomScreen);
+                    roomStatus.textContent = "Waiting for players...";
+                    startRoomListener(code);
+                });
+            });
+        }).catch(function () {
+            alert("Could not sign in to Firebase. Please refresh and try again.");
         });
     }
 

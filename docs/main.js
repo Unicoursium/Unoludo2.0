@@ -1936,10 +1936,33 @@ const prepare_card_effects_from_next_state = function (next_state) {
 
 const sync_multiplayer_state = function () {
     if (gameMode !== "multi") {
-        return;
+        return Promise.resolve({committed: true});
     }
 
-    window.UnoludoMultiplayer.updateGameState(state, state.current_player);
+    return window.UnoludoMultiplayer.updateGameState(
+        state,
+        state.current_player
+    ).then(function (result) {
+        if (!result.committed) {
+            if (result.remoteState !== undefined) {
+                state = window.UnoludoMultiplayer.unflattenState(
+                    result.remoteState
+                );
+                mpStateSynced = true;
+                clear_selection();
+                render();
+            }
+
+            action_message.textContent = (
+                "Game state changed. Please try your move again."
+            );
+        }
+
+        return result;
+    }).catch(function () {
+        action_message.textContent = "Could not sync multiplayer state.";
+        return {committed: false};
+    });
 };
 
 const can_take_local_turn = function () {
