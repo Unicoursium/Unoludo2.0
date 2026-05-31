@@ -17,9 +17,12 @@
 <body>
     <main class="game-layout">
         <aside class="left-panel">
-            <h1 class="game-title">
-                <span class="title-uno">UNO</span><span class="title-ludo">LUDO</span>
-            </h1>
+            <div class="game-title-wrap">
+                <h1 class="game-title">
+                    <span class="title-uno">UNO</span><span class="title-ludo">LUDO</span>
+                </h1>
+                <span class="version-badge">v2.0</span>
+            </div>
 
             <p id="current-player">Current Player: Player</p>
 
@@ -33,6 +36,13 @@
 
         <section class="board-panel">
         <div class="board-wrapper" id="board-wrapper">
+            <div id="particle-canvas" aria-hidden="true"></div>
+            <div class="turn-indicator" aria-label="Turn indicator">
+                <span class="turn-indicator-label">Player's Turn</span>
+                <span class="turn-progress-track">
+                    <span class="turn-progress-fill"></span>
+                </span>
+            </div>
             <img class="board-image" src="./assets/img/Unoludo_Board.png" alt="Unoludo board">
             <div id="discard-layer"></div>
             <div id="piece-layer"></div>
@@ -48,6 +58,7 @@
                 <button id="debug-move">Move</button>
                 <button id="give-card">Give</button>
                 <button id="draw-end-turn">Draw & End Turn</button>
+                <button id="sound-toggle" class="sound-toggle" type="button" aria-pressed="true">Sound On</button>
 
                 <!-- Temporarily disabled -->
                 <!-- <button id="cancel-action">Cancel Selection</button> -->
