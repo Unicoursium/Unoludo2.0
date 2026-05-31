@@ -1,0 +1,18 @@
+// Firebase configuration for Unoludo 2.0
+// Uses Firebase compat SDK via CDN (no build step needed)
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCrnPKuJajSIcRDBnH1V_sRICJZJs5K1E8",
+    authDomain: "unoludo.firebaseapp.com",
+    databaseURL: "https://unoludo-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "unoludo",
+    storageBucket: "unoludo.firebasestorage.app",
+    messagingSenderId: "150362259190",
+    appId: "1:150362259190:web:71bd5afc0265da842bb6d7"
+};
+
+// Initialize Firebase (compat mode for CDN usage)
+firebase.initializeApp(firebaseConfig);
+
+// Database reference
+const db = firebase.database();
