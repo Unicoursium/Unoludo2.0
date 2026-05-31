@@ -7,34 +7,41 @@
     "use strict";
 
     // ---- DOM refs ----
-    const homeScreen = document.getElementById("home-screen");
-    const lobbyScreen = document.getElementById("lobby-screen");
-    const roomScreen = document.getElementById("room-screen");
-    const gameScreen = document.getElementById("game-screen");
+    var homeScreen = document.getElementById("home-screen");
+    var lobbyScreen = document.getElementById("lobby-screen");
+    var roomScreen = document.getElementById("room-screen");
+    var gameScreen = document.getElementById("game-screen");
 
-    const btnSinglePlayer = document.getElementById("btn-single-player");
-    const btnMultiPlayer = document.getElementById("btn-multi-player");
+    var btnSinglePlayer = document.getElementById("btn-single-player");
+    var btnMultiPlayer = document.getElementById("btn-multi-player");
 
-    const lobbyBack = document.getElementById("lobby-back");
-    const playerNameInput = document.getElementById("player-name-input");
-    const btnCreateRoom = document.getElementById("btn-create-room");
-    const roomCodeInput = document.getElementById("room-code-input");
-    const btnJoinRoom = document.getElementById("btn-join-room");
+    var lobbyBack = document.getElementById("lobby-back");
+    var playerNameInput = document.getElementById("player-name-input");
+    var btnCreateRoom = document.getElementById("btn-create-room");
+    var roomCodeInput = document.getElementById("room-code-input");
+    var btnJoinRoom = document.getElementById("btn-join-room");
 
-    const roomLeave = document.getElementById("room-leave");
-    const roomCodeValue = document.getElementById("room-code-value");
-    const btnCopyCode = document.getElementById("btn-copy-code");
-    const roomPlayerList = document.getElementById("room-player-list");
-    const roomStatus = document.getElementById("room-status");
+    var roomLeave = document.getElementById("room-leave");
+    var roomCodeValue = document.getElementById("room-code-value");
+    var btnCopyCode = document.getElementById("btn-copy-code");
+    var roomPlayerList = document.getElementById("room-player-list");
+    var roomStatus = document.getElementById("room-status");
+
+    var cpuAddArea = document.getElementById("cpu-add-area");
+    var btnAddCpu = document.getElementById("btn-add-cpu");
+    var btnStartGame = document.getElementById("btn-start-game");
 
     // ---- State ----
-    let currentRoomId = null;
-    let currentPlayerIndex = null;
-    let currentPlayers = {};
-    let roomListener = null;
-    let gameStartCallback = null;
+    var currentRoomId = null;
+    var currentPlayerIndex = null;
+    var currentPlayers = {};
+    var roomListener = null;
+    var listenerRoomId = null;
+    var gameStartCallback = null;
 
-    const PLAYER_COLOURS = ["#4d96ff", "#6bcb77", "#ff6b6b", "#ffd93d"];
+    var PLAYER_COLOURS = ["#4d96ff", "#6bcb77", "#ff6b6b", "#ffd93d"];
+    var CPU_NAMES = ["CPU Green", "CPU Red", "CPU Yellow"];
+    var CPU_COUNT = 0; // local counter for naming
 
     // ---- Screen management ----
     function showScreen(screen) {
@@ -58,6 +65,25 @@
         return /^\d{4}$/.test(code);
     }
 
+    // ---- Check if player is host ----
+    function isHost() {
+        return currentPlayerIndex === 0;
+    }
+
+    // ---- Count human and CPU players ----
+    function countPlayers(players) {
+        var human = 0;
+        var cpu = 0;
+        Object.keys(players).forEach(function (key) {
+            if (players[key].isCPU) {
+                cpu++;
+            } else {
+                human++;
+            }
+        });
+        return { human: human, cpu: cpu, total: human + cpu };
+    }
+
     // ---- Update player list UI ----
     function renderPlayerList(players) {
         roomPlayerList.innerHTML = "";
@@ -65,12 +91,20 @@
         keys.forEach(function (key) {
             var p = players[key];
             var li = document.createElement("li");
+            if (p.isCPU) {
+                li.className = "cpu-player-item";
+            }
+
             var dot = document.createElement("span");
             dot.className = "player-dot";
             dot.style.background = PLAYER_COLOURS[parseInt(key)] || "#999";
 
             var name = document.createElement("span");
-            name.textContent = p.name;
+            if (p.isCPU) {
+                name.innerHTML = "🤖 " + p.name + ' <span class="cpu-tag">CPU</span>';
+            } else {
+                name.textContent = p.name;
+            }
 
             var label = document.createElement("span");
             label.className = "player-label";
@@ -79,8 +113,81 @@
             li.appendChild(dot);
             li.appendChild(name);
             li.appendChild(label);
+
+            // Host can remove CPU players (but not human players)
+            if (isHost() && p.isCPU) {
+                var removeBtn = document.createElement("button");
+                removeBtn.className = "cpu-remove-btn";
+                removeBtn.textContent = "✕";
+                removeBtn.title = "Remove CPU";
+                removeBtn.addEventListener("click", function () {
+                    removeCpuPlayer(key);
+                });
+                li.appendChild(removeBtn);
+            }
+
             roomPlayerList.appendChild(li);
         });
+
+        // Show/hide add CPU button (host only, if slots available)
+        if (isHost() && keys.length < 4) {
+            cpuAddArea.style.display = "";
+        } else {
+            cpuAddArea.style.display = "none";
+        }
+
+        // Show/hide start game button (host only, all 4 slots must be filled)
+        if (isHost() && keys.length >= 4) {
+            btnStartGame.style.display = "";
+        } else {
+            btnStartGame.style.display = "none";
+        }
+    }
+
+    // ---- Add CPU player ----
+    function addCpuPlayer() {
+        if (!isHost() || !currentRoomId) return;
+
+        var keys = Object.keys(currentPlayers).sort();
+        if (keys.length >= 4) return;
+
+        // Find the lowest empty slot
+        var usedSlots = keys.map(function (k) { return parseInt(k); });
+        var newSlot = -1;
+        for (var i = 0; i < 4; i++) {
+            if (usedSlots.indexOf(i) === -1) {
+                newSlot = i;
+                break;
+            }
+        }
+        if (newSlot === -1) return;
+
+        // Pick a name based on the slot's colour
+        var colourNames = ["Blue", "Green", "Red", "Yellow"];
+        var cpuName = "CPU " + colourNames[newSlot];
+
+        var roomRef = db.ref("rooms/" + currentRoomId);
+        var updates = {};
+        updates["players/" + newSlot] = {
+            name: cpuName,
+            isCPU: true,
+            addedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        updates["playersCount"] = keys.length + 1;
+
+        roomRef.update(updates);
+    }
+
+    // ---- Remove CPU player ----
+    function removeCpuPlayer(slotKey) {
+        if (!isHost() || !currentRoomId) return;
+
+        var roomRef = db.ref("rooms/" + currentRoomId);
+        var updates = {};
+        updates["players/" + slotKey] = null;
+        updates["playersCount"] = Object.keys(currentPlayers).length - 1;
+
+        roomRef.update(updates);
     }
 
     // ---- Create room ----
@@ -92,7 +199,6 @@
 
         roomRef.once("value", function (snapshot) {
             if (snapshot.exists()) {
-                // Code collision, try again
                 createRoom();
                 return;
             }
@@ -100,6 +206,7 @@
             var roomData = {
                 status: "waiting",
                 createdAt: firebase.database.ServerValue.TIMESTAMP,
+                playersCount: 1,
                 players: {
                     "0": {
                         name: name,
@@ -131,32 +238,48 @@
 
         var roomRef = db.ref("rooms/" + code);
 
-        roomRef.once("value", function (snapshot) {
-            if (!snapshot.exists()) {
-                alert("Room not found. Check the code and try again.");
+        // First check if room exists and is waiting
+        roomRef.once("value", function (roomSnap) {
+            var room = roomSnap.val();
+            if (!room || room.status !== "waiting") {
+                if (!room) {
+                    alert("Room not found. Check the code and try again.");
+                } else {
+                    alert("This game has already started.");
+                }
                 return;
             }
 
-            var room = snapshot.val();
-            if (room.status !== "waiting") {
-                alert("This game has already started.");
+            var players = room.players || {};
+            var keys = Object.keys(players);
+            if (keys.length >= 4) {
+                alert("Room is full.");
                 return;
             }
 
-            var playerCount = Object.keys(room.players).length;
-            if (playerCount >= 4) {
-                alert("This room is full.");
+            // Find the lowest empty slot
+            var usedSlots = keys.map(function (k) { return parseInt(k); });
+            var newIndex = -1;
+            for (var i = 0; i < 4; i++) {
+                if (usedSlots.indexOf(i) === -1) {
+                    newIndex = i;
+                    break;
+                }
+            }
+            if (newIndex === -1) {
+                alert("Room is full.");
                 return;
             }
 
-            var newIndex = playerCount;
-            var playerUpdate = {};
-            playerUpdate["rooms/" + code + "/players/" + newIndex] = {
+            // Write the new player and update count
+            var updates = {};
+            updates["rooms/" + code + "/players/" + newIndex] = {
                 name: name,
                 joinedAt: firebase.database.ServerValue.TIMESTAMP
             };
+            updates["rooms/" + code + "/playersCount"] = keys.length + 1;
 
-            db.ref().update(playerUpdate).then(function () {
+            db.ref().update(updates).then(function () {
                 currentRoomId = code;
                 currentPlayerIndex = newIndex;
                 roomCodeValue.textContent = code;
@@ -169,9 +292,11 @@
 
     // ---- Listen for room changes ----
     function startRoomListener(code) {
+        var previousRoomId = listenerRoomId;
         if (roomListener) {
-            db.ref("rooms/" + code).off("value", roomListener);
+            db.ref("rooms/" + previousRoomId).off("value", roomListener);
         }
+        listenerRoomId = code;
 
         roomListener = db.ref("rooms/" + code).on("value", function (snapshot) {
             var room = snapshot.val();
@@ -184,27 +309,33 @@
             currentPlayers = room.players || {};
             renderPlayerList(currentPlayers);
 
-            var playerCount = Object.keys(currentPlayers).length;
-            roomStatus.textContent = "Waiting for players... (" + playerCount + "/4)";
+            var counts = countPlayers(currentPlayers);
+            roomStatus.textContent = "Waiting for players... (" + counts.total + "/4)";
 
-            // Auto-start when room is full and still waiting (creator only, use transaction to prevent race)
-            if (playerCount >= 4 && room.status === "waiting" && currentPlayerIndex === 0) {
-                db.ref("rooms/" + code + "/status").transaction(function (currentStatus) {
-                    if (currentStatus === "waiting") {
-                        return "playing";
-                    }
-                    return currentStatus;
-                });
-            }
+            console.log("[Lobby] Room update: status=" + room.status + " players=" + counts.total + " myIndex=" + currentPlayerIndex);
 
             if (room.status === "playing") {
-                // Game started — notify main.js
+                console.log("[Lobby] Game is playing! Triggering callback...");
                 if (roomListener) {
                     db.ref("rooms/" + code).off("value", roomListener);
                     roomListener = null;
                 }
                 if (gameStartCallback) {
-                    gameStartCallback(code, currentPlayerIndex);
+                    // Build the definitive playerKinds array from room data
+                    // Every client must use the SAME array for consistency
+                    var playerKinds = ["cpu", "cpu", "cpu", "cpu"];
+                    Object.keys(currentPlayers).forEach(function (key) {
+                        var idx = parseInt(key);
+                        if (currentPlayers[key].isCPU) {
+                            playerKinds[idx] = "cpu";
+                        } else {
+                            playerKinds[idx] = "human";
+                        }
+                    });
+                    console.log("[Lobby] Calling gameStartCallback with code=" + code + " index=" + currentPlayerIndex + " playerKinds=" + JSON.stringify(playerKinds));
+                    gameStartCallback(code, currentPlayerIndex, playerKinds);
+                } else {
+                    console.log("[Lobby] WARNING: gameStartCallback is not set!");
                 }
                 return;
             }
@@ -216,10 +347,21 @@
         if (roomListener && currentRoomId) {
             db.ref("rooms/" + currentRoomId).off("value", roomListener);
             roomListener = null;
+            listenerRoomId = null;
         }
 
-        // If we're the creator (index 0) and no one else joined, delete the room
-        if (currentPlayerIndex === 0 && Object.keys(currentPlayers).length <= 1 && currentRoomId) {
+        // Remove this player from Firebase
+        if (currentRoomId !== null && currentPlayerIndex !== null) {
+            db.ref("rooms/" + currentRoomId + "/players/" + currentPlayerIndex).remove();
+            // Update playersCount based on remaining players
+            var remaining = Object.keys(currentPlayers).filter(function (k) {
+                return parseInt(k) !== currentPlayerIndex;
+            }).length;
+            db.ref("rooms/" + currentRoomId + "/playersCount").set(remaining);
+        }
+
+        // Only remove the whole room if it's the host (index 0) and no other players remain
+        if (currentPlayerIndex === 0 && currentRoomId) {
             db.ref("rooms/" + currentRoomId).remove();
         }
 
@@ -232,7 +374,6 @@
     // ---- Start the game (creator only) ----
     function startGame() {
         if (currentPlayerIndex !== 0) return;
-
         var roomRef = db.ref("rooms/" + currentRoomId);
         roomRef.update({ status: "playing" });
     }
@@ -280,6 +421,14 @@
                 }, 1500);
             });
         }
+    });
+
+    btnAddCpu.addEventListener("click", function () {
+        addCpuPlayer();
+    });
+
+    btnStartGame.addEventListener("click", function () {
+        startGame();
     });
 
     // ---- Public API ----

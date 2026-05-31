@@ -16,7 +16,6 @@
                 <span class="title-uno">UNO</span><span class="title-ludo">LUDO</span>
             </h1>
             <p class="home-subtitle">The Ultimate Card + Board Game</p>
-
             <div class="home-buttons">
                 <button id="btn-single-player" class="home-btn home-btn-primary">
                     <span class="home-btn-icon">🎮</span>
@@ -27,7 +26,6 @@
                     Multiplayer
                 </button>
             </div>
-
             <p class="home-version">v2.0</p>
         </div>
     </div>
@@ -39,12 +37,10 @@
                 <button id="lobby-back" class="lobby-back-btn">← Back</button>
                 <h2 class="lobby-title">Multiplayer Lobby</h2>
             </div>
-
             <div class="lobby-name-section">
                 <label for="player-name-input">Your Name</label>
                 <input type="text" id="player-name-input" class="lobby-input" placeholder="Enter your name..." maxlength="12">
             </div>
-
             <div class="lobby-actions">
                 <button id="btn-create-room" class="lobby-btn lobby-btn-create">
                     Create Room
@@ -67,18 +63,19 @@
                 <button id="room-leave" class="lobby-back-btn">← Leave</button>
                 <h2 class="room-title">Waiting Room</h2>
             </div>
-
             <div class="room-code-display">
                 <p class="room-code-label">Room Code</p>
                 <p id="room-code-value" class="room-code-value">----</p>
                 <button id="btn-copy-code" class="room-copy-btn">Copy</button>
             </div>
-
             <div class="room-players">
                 <h3>Players</h3>
                 <ul id="room-player-list" class="room-player-list"></ul>
+                <div id="cpu-add-area" class="cpu-add-area" style="display:none;">
+                    <button id="btn-add-cpu" class="cpu-add-btn">🤖 Add CPU Player</button>
+                </div>
             </div>
-
+            <button id="btn-start-game" class="room-start-btn" style="display:none;">Start Game</button>
             <p id="room-status" class="room-status">Waiting for players...</p>
         </div>
     </div>
@@ -93,12 +90,10 @@
                     </h1>
                     <span class="version-badge">v2.0</span>
                 </div>
-
                 <div class="played-card-panel">
                     <h2 id="played-card-title">Player Played:</h2>
                     <img id="played-card-image" class="played-card-image" src="./assets/img/B6.png" alt="Last played card">
                 </div>
-
                 <p id="action-message">Select a card, then select one of your planes.</p>
             </aside>
 
@@ -157,9 +152,7 @@
             <h2 class="winner-title">
                 <span id="winner-name">Player</span> Won!
             </h2>
-            <button id="winner-restart" class="winner-button">
-                Congratulations!
-            </button>
+            <button id="winner-restart" class="winner-button">Congratulations!</button>
         </div>
     </div>
 
@@ -189,6 +182,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script src="./firebase-config.js"></script>
+    <script src="./multiplayer.js"></script>
 
     <!-- App scripts -->
     <script src="./lobby.js"></script>
