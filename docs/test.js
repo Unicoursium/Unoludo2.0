@@ -92,6 +92,30 @@ assert.deepEqual(Unoludo.home_entry_positions, {
     red: 23,
     yellow: 36
 });
+
+const deck = Unoludo.create_deck();
+assert.equal(deck.length, 220);
+assert.equal(deck.filter(function (card) {
+    return card.type === "wild";
+}).length, 6);
+assert.equal(deck.filter(function (card) {
+    return card.type === "wild4";
+}).length, 6);
+assert.equal(deck.filter(function (card) {
+    return card.colour === "blue" &&
+        card.type === "number" &&
+        card.value === 1;
+}).length, 4);
+assert.equal(deck.filter(function (card) {
+    return card.colour === "blue" &&
+        card.type === "number" &&
+        card.value === 2;
+}).length, 7);
+assert.equal(deck.filter(function (card) {
+    return card.colour === "blue" &&
+        card.type === "reverse";
+}).length, 1);
+
 assert.deepEqual(Unoludo.jump_positions, {
     blue: {from: 17, to: 29},
     green: {from: 30, to: 42},
@@ -276,5 +300,88 @@ assert.deepEqual(nextState.player_moods, {
 nextState = Unoludo.end_turn(nextState);
 assert.equal(nextState.current_player, 0);
 assert.deepEqual(nextState.player_moods, {});
+
+const reversePlayer = Object.freeze({
+    id: 0,
+    name: "Blue",
+    colour: "blue",
+    kind: "human",
+    hand: Object.freeze([
+        Unoludo.card("blue-reverse", "reverse", "blue"),
+        Unoludo.card("blue-spare-2", "number", "blue", 2)
+    ]),
+    planes: Unoludo.empty_planes()
+});
+const reverseVictim = Object.freeze({
+    id: 1,
+    name: "Green",
+    colour: "green",
+    kind: "human",
+    hand: Object.freeze([]),
+    planes: Object.freeze([
+        Object.freeze({
+            status: "track",
+            position: 17,
+            shielded: false,
+            frozen: false
+        }),
+        ...Unoludo.empty_planes().slice(1)
+    ])
+});
+
+state = makeMultiState(
+    [reversePlayer, reverseVictim],
+    Unoludo.card("top-reverse", "reverse", "blue")
+);
+nextState = Unoludo.play_reverse_card(state, "blue-reverse", 1, 0, 4);
+
+assert.deepEqual(nextState.players[0].hand, [
+    Unoludo.card("blue-spare-2", "number", "blue", 2)
+]);
+assert.deepEqual(nextState.players[1].planes[0], {
+    status: "track",
+    position: 13,
+    shielded: false,
+    frozen: false
+});
+assert.deepEqual(nextState.player_moods, {
+    0: "smug",
+    1: "angry"
+});
+
+const drawRefillPlayer = Object.freeze({
+    id: 0,
+    name: "Blue",
+    colour: "blue",
+    kind: "human",
+    hand: Object.freeze([]),
+    planes: Unoludo.empty_planes()
+});
+
+state = Object.freeze({
+    draw_pile: Object.freeze([Unoludo.card("draw-only", "number", "blue", 1)]),
+    discard_pile: Object.freeze([
+        Unoludo.card("discard-a", "number", "green", 2),
+        Unoludo.card("discard-b", "skip", "yellow"),
+        Unoludo.card("discard-top", "number", "red", 4)
+    ]),
+    players: Object.freeze([drawRefillPlayer]),
+    current_player: 0,
+    active_colour: "red",
+    winner: undefined,
+    player_moods: Object.freeze({}),
+    log: Object.freeze([])
+});
+nextState = Unoludo.draw_cards(state, 0, 2);
+
+assert.equal(nextState.players[0].hand.length, 2);
+assert.deepEqual(nextState.discard_pile, [
+    Unoludo.card("discard-top", "number", "red", 4)
+]);
+assert.equal(nextState.draw_pile.length, 1);
+assert.equal(
+    nextState.log.includes("Draw pile was refilled from the discard pile."),
+    true
+);
 
 console.log("Board V3 movement smoke tests passed.");

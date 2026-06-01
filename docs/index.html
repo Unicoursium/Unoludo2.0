@@ -125,7 +125,18 @@
             </aside>
 
             <section class="hand-panel">
-                <h2>Your Hand</h2>
+                <div class="hand-panel-header">
+                    <div id="hand-play-hint" class="hand-play-hint" aria-label="Current playable color and card type">
+                        <span class="hand-play-hint-label">Can Play</span>
+                        <span class="hand-play-hint-line">
+                            <span id="hand-play-colour-swatch" class="hand-play-colour-swatch"></span>
+                            <span id="hand-play-colour">Blue</span>
+                        </span>
+                        <span id="hand-play-type" class="hand-play-type">or 6</span>
+                    </div>
+                    <h2>Your Hand</h2>
+                    <div class="hand-panel-header-spacer" aria-hidden="true"></div>
+                </div>
                 <div id="hand-cards" class="hand-cards"></div>
             </section>
         </main>
@@ -177,6 +188,20 @@
             <div class="wild4-choice-buttons">
                 <button id="wild4-draw4-choice">Draw 4 Cards</button>
                 <button id="wild4-move-choice">Move All Active Planes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="reverse-step-overlay" class="choice-overlay hidden">
+        <div class="choice-modal reverse-step-modal">
+            <h2 class="choice-title">Move Back</h2>
+            <div class="reverse-step-buttons">
+                <button data-reverse-step="1">1</button>
+                <button data-reverse-step="2">2</button>
+                <button data-reverse-step="3">3</button>
+                <button data-reverse-step="4">4</button>
+                <button data-reverse-step="5">5</button>
+                <button data-reverse-step="6">6</button>
             </div>
         </div>
     </div>

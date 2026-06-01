@@ -138,9 +138,10 @@ const create_copies = function (prefix, count, type, colour, value) {
  * Create all coloured cards for one colour.
  * Each colour contains:
  * - 0 x 4
- * - 1-6 x 6 each
+ * - 1 x 4
+ * - 2-6 x 7 each
  * - Skip x 4
- * - Reverse x 4
+ * - Reverse x 1
  * - Draw Two x 4
  *
  * @function
@@ -156,10 +157,18 @@ const create_colour_cards = function (colour) {
         0
     );
 
-    const movement_cards = [1, 2, 3, 4, 5, 6].flatMap(function (value) {
+    const one_cards = create_copies(
+        colour + "-number-1",
+        4,
+        "number",
+        colour,
+        1
+    );
+
+    const movement_cards = [2, 3, 4, 5, 6].flatMap(function (value) {
         return create_copies(
             colour + "-number-" + value,
-            6,
+            7,
             "number",
             colour,
             value
@@ -169,7 +178,7 @@ const create_colour_cards = function (colour) {
     const skip_cards = create_copies(colour + "-skip", 4, "skip", colour);
     const reverse_cards = create_copies(
         colour + "-reverse",
-        4,
+        1,
         "reverse",
         colour
     );
@@ -182,6 +191,7 @@ const create_colour_cards = function (colour) {
 
     return [
         ...zero_cards,
+        ...one_cards,
         ...movement_cards,
         ...skip_cards,
         ...reverse_cards,
@@ -192,14 +202,15 @@ const create_colour_cards = function (colour) {
 /**
  * Create the full Unoludo deck.
  *
- * The deck contains 216 cards:
+ * The deck contains 220 cards:
  * - 16 zero shield cards
- * - 144 movement cards from 1 to 6
+ * - 16 movement cards with value 1
+ * - 140 movement cards from 2 to 6
  * - 16 Skip cards
- * - 16 Reverse cards
+ * - 4 Reverse cards
  * - 16 Draw Two cards
- * - 4 Wild cards
- * - 4 Wild +4 cards
+ * - 6 Wild cards
+ * - 6 Wild +4 cards
  *
  * @memberof Unoludo
  * @function
@@ -207,8 +218,8 @@ const create_colour_cards = function (colour) {
  */
 Unoludo.create_deck = function () {
     const coloured_cards = Unoludo.colours.flatMap(create_colour_cards);
-    const wild_cards = create_copies("wild", 4, "wild", "wild");
-    const wild_four_cards = create_copies("wild4", 4, "wild4", "wild");
+    const wild_cards = create_copies("wild", 6, "wild", "wild");
+    const wild_four_cards = create_copies("wild4", 6, "wild4", "wild");
 
     return Object.freeze([
         ...coloured_cards,
@@ -874,38 +885,71 @@ Unoludo.update_plane = function (
     return Unoludo.update_player(state, player_id, new_player);
 };
 
-const create_refill_deck = function (state) {
-    const suffix = "-refill-" + state.log.length;
+const refill_draw_pile_from_discard = function (state) {
+    const top_discard = Unoludo.top_discard(state);
+    const refill_cards = state.discard_pile.slice(0, -1);
 
-    return Object.freeze(Unoludo.create_deck().map(function (card) {
-        return Unoludo.card(
-            card.id + suffix,
-            card.type,
-            card.colour,
-            card.value
-        );
-    }));
-};
-
-const draw_pile_with_enough_cards = function (state, count) {
-    let draw_pile = state.draw_pile;
-
-    while (draw_pile.length < count) {
-        draw_pile = Object.freeze(
-            draw_pile.concat(
-                Unoludo.shuffle_deck(create_refill_deck(state))
-            )
-        );
+    if (refill_cards.length === 0) {
+        return undefined;
     }
 
-    return draw_pile;
+    return Object.freeze({
+        draw_pile: Unoludo.shuffle_deck(refill_cards),
+        discard_pile: Object.freeze([top_discard]),
+        refilled: true
+    });
+};
+
+const create_emergency_refill_deck = function (state) {
+    const suffix = "-emergency-refill-" + state.log.length;
+
+    return Object.freeze(Unoludo.shuffle_deck(
+        Unoludo.create_deck().map(function (card) {
+            return Unoludo.card(
+                card.id + suffix,
+                card.type,
+                card.colour,
+                card.value
+            );
+        })
+    ));
+};
+
+const prepare_draw_pile = function (state, count) {
+    let draw_pile = state.draw_pile;
+    let discard_pile = state.discard_pile;
+    let refilled = false;
+    let refill;
+
+    if (draw_pile.length < count) {
+        refill = refill_draw_pile_from_discard(state);
+
+        if (refill !== undefined) {
+            draw_pile = Object.freeze(draw_pile.concat(refill.draw_pile));
+            discard_pile = refill.discard_pile;
+            refilled = true;
+        }
+    }
+
+    if (draw_pile.length < count) {
+        draw_pile = Object.freeze(
+            draw_pile.concat(create_emergency_refill_deck(state))
+        );
+        refilled = true;
+    }
+
+    return Object.freeze({
+        draw_pile: draw_pile,
+        discard_pile: discard_pile,
+        refilled: refilled
+    });
 };
 
 /**
  * Draw cards for a player.
  *
- * If the draw pile contains fewer cards than requested, the player draws
- * as many cards as possible.
+ * If the draw pile contains fewer cards than requested, the discard pile is
+ * reshuffled into the draw pile while preserving the top discard card.
  *
  * @memberof Unoludo
  * @function
@@ -916,9 +960,14 @@ const draw_pile_with_enough_cards = function (state, count) {
  */
 Unoludo.draw_cards = function (state, player_id, count) {
     const player = state.players[player_id];
-    const available_draw_pile = draw_pile_with_enough_cards(state, count);
-    const drawn_cards = available_draw_pile.slice(0, count);
-    const remaining_draw_pile = available_draw_pile.slice(drawn_cards.length);
+    const prepared_piles = prepare_draw_pile(state, count);
+    const drawn_cards = prepared_piles.draw_pile.slice(0, count);
+    const remaining_draw_pile = prepared_piles.draw_pile.slice(drawn_cards.length);
+    const refill_message = (
+        prepared_piles.refilled
+        ? ["Draw pile was refilled from the discard pile."]
+        : []
+    );
 
     const new_player = Object.freeze({
         id: player.id,
@@ -931,14 +980,14 @@ Unoludo.draw_cards = function (state, player_id, count) {
 
     return Object.freeze({
         draw_pile: Object.freeze(remaining_draw_pile),
-        discard_pile: state.discard_pile,
+        discard_pile: prepared_piles.discard_pile,
         players: replace_player(state.players, player_id, new_player),
         current_player: state.current_player,
         active_colour: state.active_colour,
         winner: state.winner,
         player_moods: player_moods_for_state(state),
         log: Object.freeze(
-            state.log.concat([
+            state.log.concat(refill_message).concat([
                 player.name + " drew " + drawn_cards.length + " card(s)."
             ])
         )
@@ -1987,66 +2036,52 @@ const move_plane_backward = function (plane, steps, colour) {
 };
 
 /**
- * Play a Reverse combo.
+ * Play a Reverse card.
  *
- * Reverse must be played with a number card of the same colour. The number
- * card determines how many spaces the target opponent plane moves backwards.
- * At least one of the two cards must satisfy the current UNO play condition.
+ * The player chooses how many spaces, from 1 to 6, to move the selected
+ * opponent plane backwards.
  *
  * @memberof Unoludo
  * @function
  * @param {Unoludo.State} state The current game state.
- * @param {string} reverse_card_id The Reverse card id.
- * @param {string} number_card_id The same-colour number card id.
+ * @param {string} card_id The Reverse card id.
  * @param {number} target_player_id The target opponent player id.
  * @param {number} target_plane_index The index of the target plane to move backwards (0-3).
+ * @param {number} steps The number of spaces to move backwards.
  * @returns {(Unoludo.State | undefined)} The updated state, or undefined.
  */
-Unoludo.play_reverse_combo = function (
+Unoludo.play_reverse_card = function (
     state,
-    reverse_card_id,
-    number_card_id,
+    card_id,
     target_player_id,
-    target_plane_index
+    target_plane_index,
+    steps
 ) {
     const player = Unoludo.current_player(state);
-    const reverse_card = Unoludo.card_in_hand(player, reverse_card_id);
-    const number_card = Unoludo.card_in_hand(player, number_card_id);
+    const card = Unoludo.card_in_hand(player, card_id);
     let target_player;
     let target_plane;
     let moved_plane;
-    let player_after_reverse;
-    let player_after_both_cards;
-    let state_after_cards;
+    let player_after_card;
+    let state_after_card;
 
     if (Unoludo.is_ended(state)) {
         return undefined;
     }
 
-    if (reverse_card === undefined || number_card === undefined) {
+    if (card === undefined) {
         return undefined;
     }
 
-    if (reverse_card.type !== "reverse") {
+    if (!Unoludo.can_play_card(card, state)) {
         return undefined;
     }
 
-    if (
-        number_card.type !== "number" ||
-        number_card.value < 1 ||
-        number_card.value > 6
-    ) {
+    if (card.type !== "reverse") {
         return undefined;
     }
 
-    if (reverse_card.colour !== number_card.colour) {
-        return undefined;
-    }
-
-    if (
-        !Unoludo.can_play_card(reverse_card, state) &&
-        !Unoludo.can_play_card(number_card, state)
-    ) {
+    if (!Number.isInteger(steps) || steps < 1 || steps > 6) {
         return undefined;
     }
 
@@ -2068,7 +2103,7 @@ Unoludo.play_reverse_combo = function (
 
     moved_plane = move_plane_backward(
         target_plane,
-        number_card.value,
+        steps,
         target_player.colour
     );
 
@@ -2076,65 +2111,47 @@ Unoludo.play_reverse_combo = function (
         return undefined;
     }
 
-    player_after_reverse = Unoludo.remove_card_from_hand(
-        player,
-        reverse_card_id
-    );
+    player_after_card = Unoludo.remove_card_from_hand(player, card_id);
 
-    if (player_after_reverse === undefined) {
+    if (player_after_card === undefined) {
         return undefined;
     }
 
-    player_after_both_cards = Unoludo.remove_card_from_hand(
-        player_after_reverse,
-        number_card_id
-    );
-
-    if (player_after_both_cards === undefined) {
-        return undefined;
-    }
-
-    state_after_cards = Object.freeze({
+    state_after_card = Object.freeze({
         draw_pile: state.draw_pile,
-        discard_pile: Object.freeze(
-            state.discard_pile.concat([reverse_card, number_card])
-        ),
+        discard_pile: Object.freeze(state.discard_pile.concat([card])),
         players: replace_player(
             state.players,
             player.id,
-            player_after_both_cards
+            player_after_card
         ),
         current_player: state.current_player,
-        active_colour: number_card.colour,
+        active_colour: card.colour,
         winner: state.winner,
         player_moods: player_moods_for_state(state),
         log: Object.freeze(state.log.concat([
             player.name + " played "
-            + reverse_card.colour + " Reverse with "
-            + number_card.value + " and moved "
+            + card.colour + " Reverse and moved "
             + target_player.name + "'s plane "
             + target_plane_index + " backwards by "
-            + number_card.value + "."
+            + steps + "."
         ]))
     });
 
-    state_after_cards = Unoludo.update_plane(
-        state_after_cards,
+    state_after_card = Unoludo.update_plane(
+        state_after_card,
         target_player_id,
         target_plane_index,
         moved_plane
     );
 
-    state_after_cards = mark_disruption(
-        state_after_cards,
+    state_after_card = mark_disruption(
+        state_after_card,
         player.id,
         target_player_id
     );
 
-    return grant_empty_hand_bonus(
-        state_after_cards,
-        player.id
-    );
+    return grant_empty_hand_bonus(state_after_card, player.id);
 };
 
 /**

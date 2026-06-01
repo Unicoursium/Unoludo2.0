@@ -338,6 +338,8 @@ const colour_choice_buttons = document.querySelectorAll(".colour-choice");
 const wild4_option_overlay = document.getElementById("wild4-option-overlay");
 const wild4_draw4_choice = document.getElementById("wild4-draw4-choice");
 const wild4_move_choice = document.getElementById("wild4-move-choice");
+const reverse_step_overlay = document.getElementById("reverse-step-overlay");
+const reverse_step_buttons = document.querySelectorAll("[data-reverse-step]");
 const winner_overlay = document.getElementById("winner-overlay");
 const winner_name = document.getElementById("winner-name");
 const winner_restart_button = document.getElementById("winner-restart");
@@ -359,6 +361,46 @@ const player_colour_hex = function (colour) {
     }
 
     return "#f8fafc";
+};
+
+const colour_label = function (colour) {
+    if (typeof colour !== "string" || colour.length === 0) {
+        return "Any";
+    }
+
+    return colour.charAt(0).toUpperCase() + colour.slice(1);
+};
+
+const card_match_label = function (card) {
+    if (card.type === "number") {
+        return String(card.value);
+    }
+
+    if (card.type === "skip") {
+        return "Skip";
+    }
+
+    if (card.type === "reverse") {
+        return "Reverse";
+    }
+
+    if (card.type === "draw2") {
+        return "+2";
+    }
+
+    if (card.type === "wild") {
+        return "Wild";
+    }
+
+    if (card.type === "wild4") {
+        return "+4";
+    }
+
+    if (card.type === "reward") {
+        return "P" + card.value;
+    }
+
+    return card.type;
 };
 const show_winner_popup = function () {
     let winner;
@@ -382,6 +424,10 @@ const hide_winner_popup = function () {
 const played_card_title = document.getElementById("played-card-title");
 const played_card_image = document.getElementById("played-card-image");
 const player_status_panel = document.getElementById("player-status-panel");
+const hand_play_hint = document.getElementById("hand-play-hint");
+const hand_play_colour_swatch = document.getElementById("hand-play-colour-swatch");
+const hand_play_colour = document.getElementById("hand-play-colour");
+const hand_play_type = document.getElementById("hand-play-type");
 const open_log_button = document.getElementById("open-log");
 const log_overlay = document.getElementById("log-overlay");
 const close_log_button = document.getElementById("close-log");
@@ -1424,28 +1470,23 @@ const find_cpu_reverse_move = function (cpu_state, player) {
             return false;
         }
 
-        return player.hand.some(function (number_card) {
-            if (
-                number_card.type !== "number" ||
-                number_card.value < 1 ||
-                number_card.value > 6 ||
-                number_card.colour !== reverse_card.colour
-            ) {
-                return false;
-            }
+        if (!Unoludo.can_play_card(reverse_card, cpu_state)) {
+            return false;
+        }
 
+        [1, 2, 3, 4, 5, 6].forEach(function (steps) {
             cpu_state.players.forEach(function (target_player) {
                 if (target_player.id === player.id) {
-                    return false;
+                    return;
                 }
 
                 target_player.planes.forEach(function (plane, plane_index) {
-                    const next_state = Unoludo.play_reverse_combo(
+                    const next_state = Unoludo.play_reverse_card(
                         cpu_state,
                         reverse_card.id,
-                        number_card.id,
                         target_player.id,
-                        plane_index
+                        plane_index,
+                        steps
                     );
 
                     if (next_state !== undefined) {
@@ -1454,10 +1495,10 @@ const find_cpu_reverse_move = function (cpu_state, player) {
                             player,
                             next_state,
                             "reverse",
-                            player.name + " played Reverse combo",
+                            player.name + " played Reverse",
                             {
                                 card: reverse_card,
-                                number_card: number_card,
+                                steps: steps,
                                 target_player_id: target_player.id,
                                 plane_index: plane_index
                             }
@@ -1465,8 +1506,6 @@ const find_cpu_reverse_move = function (cpu_state, player) {
                     }
                 });
             });
-
-            return false;
         });
 
         return false;
@@ -1866,6 +1905,26 @@ const choose_wild4_option_with_modal = function () {
         wild4_option_overlay.classList.remove("hidden");
     });
 };
+
+const choose_reverse_steps_with_modal = function () {
+    return new Promise(function (resolve) {
+        const close_with_steps = function (steps) {
+            reverse_step_overlay.classList.add("hidden");
+            reverse_step_buttons.forEach(function (button) {
+                button.onclick = null;
+            });
+            resolve(steps);
+        };
+
+        reverse_step_buttons.forEach(function (button) {
+            button.onclick = function () {
+                close_with_steps(Number(button.dataset.reverseStep));
+            };
+        });
+
+        reverse_step_overlay.classList.remove("hidden");
+    });
+};
 const piece_layer = document.getElementById("piece-layer");
 const discard_layer = document.getElementById("discard-layer");
 const hand_cards = document.getElementById("hand-cards");
@@ -2047,46 +2106,16 @@ const play_selected_card_without_plane = async function () {
         return;
     }
 
-    if (card.type === "reverse") {
-        const reverse_is_playable = Unoludo.can_play_card(card, state);
-        const has_matching_number = player.hand.some(function (hand_card) {
-            return (
-                hand_card.id !== card.id &&
-                hand_card.type === "number" &&
-                hand_card.value > 0 &&
-                hand_card.colour === card.colour
-            );
-        });
-        const has_playable_matching_number = player.hand.some(function (hand_card) {
-            return (
-                hand_card.id !== card.id &&
-                hand_card.type === "number" &&
-                hand_card.value > 0 &&
-                hand_card.colour === card.colour &&
-                Unoludo.can_play_card(hand_card, state)
-            );
-        });
-
-        if (!has_matching_number) {
-            clear_selection();
-            action_message.textContent = "Reverse needs a same-colour number card.";
-            render();
-            return;
-        }
-
-        if (!reverse_is_playable && !has_playable_matching_number) {
-            action_message.textContent = "That Reverse combo cannot be played on the current discard.";
-            return;
-        }
-
-        target_mode = "reverse_number";
-        combo_card_id = undefined;
-        action_message.textContent = "Select a same-colour number card for Reverse.";
+    if (!Unoludo.can_play_card(card, state)) {
+        action_message.textContent = "That card cannot be played on the current discard.";
         return;
     }
 
-    if (!Unoludo.can_play_card(card, state)) {
-        action_message.textContent = "That card cannot be played on the current discard.";
+    if (card.type === "reverse") {
+        target_mode = "reverse_target";
+        combo_card_id = undefined;
+        action_message.textContent = "Select an opponent plane to move backwards.";
+        render();
         return;
     }
     
@@ -2259,13 +2288,14 @@ const play_skip_on_plane = function (target_player_id, plane_index) {
     );
 };
 
-const play_reverse_on_plane = function (target_player_id, plane_index) {
-    const next_state = Unoludo.play_reverse_combo(
+const play_reverse_on_plane = async function (target_player_id, plane_index) {
+    const steps = await choose_reverse_steps_with_modal();
+    const next_state = Unoludo.play_reverse_card(
         state,
         selected_card_id,
-        combo_card_id,
         target_player_id,
-        plane_index
+        plane_index,
+        steps
     );
 
     if (next_state === undefined) {
@@ -2277,7 +2307,7 @@ const play_reverse_on_plane = function (target_player_id, plane_index) {
     combo_card_id = undefined;
     finish_successful_action(
         next_state,
-        "Played Reverse combo and moved a plane backwards."
+        "Played Reverse and moved a plane backwards."
     );
 };
 
@@ -2761,10 +2791,15 @@ const render_hand = function () {
         return;
     }
 
-    player.hand.forEach(function (card) {
+    const has_playable_card = player.hand.some(function (card) {
+        return Unoludo.can_play_card(card, state);
+    });
+
+    player.hand.forEach(function (card, card_index) {
         const image = document.createElement("img");
 
         image.className = "card-image";
+        image.style.setProperty("--card-order", String(card_index + 1));
 
         if (Unoludo.can_play_card(card, state)) {
             image.className += " playable-card";
@@ -2790,32 +2825,6 @@ const render_hand = function () {
                 Unoludo.current_player(state),
                 selected_card_id
             );
-
-            if (target_mode === "reverse_number") {
-                if (
-                    selected_card !== undefined &&
-                    card.type === "number" &&
-                    card.value > 0 &&
-                    card.colour === selected_card.colour
-                ) {
-                    combo_card_id = card.id;
-                    target_mode = "reverse_target";
-                    action_message.textContent = "Select an opponent plane to move backwards.";
-                    render();
-                    return;
-                }
-
-                clear_selection();
-                selected_card_id = card.id;
-                play_selected_card_without_plane().then(function (did_update) {
-                    if (did_update) {
-                        sync_multiplayer_state();
-                    }
-                    render();
-                });
-                render();
-                return;
-            }
 
             if (target_mode === "wild_number") {
                 if (
@@ -2858,7 +2867,12 @@ const render_hand = function () {
     if (player.kind !== "cpu") {
         const draw_image = document.createElement("img");
 
-        draw_image.className = "card-image draw-card-button";
+        draw_image.className = (
+            has_playable_card
+            ? "card-image draw-card-button"
+            : "card-image draw-card-button draw-card-suggested"
+        );
+        draw_image.style.setProperty("--card-order", String(player.hand.length + 1));
         draw_image.src = UnoludoAssets.draw_card;
         draw_image.alt = "Draw and end turn";
 
@@ -2932,6 +2946,7 @@ const render_player_status_panel = function () {
         const row = document.createElement("div");
         const swatch = document.createElement("span");
         const name = document.createElement("span");
+        const hand_count = document.createElement("span");
         const emoji = document.createElement("span");
         const is_current = player.id === state.current_player;
         const mood = (
@@ -2968,6 +2983,13 @@ const render_player_status_panel = function () {
         name.className = "player-status-name";
         name.textContent = player.name;
 
+        hand_count.className = "player-status-hand-count";
+        hand_count.textContent = String(player.hand.length);
+        hand_count.setAttribute(
+            "aria-label",
+            player.hand.length + " cards left"
+        );
+
         emoji.className = "player-status-emoji";
         emoji.textContent = emoji_text;
         emoji.setAttribute(
@@ -2989,9 +3011,41 @@ const render_player_status_panel = function () {
 
         row.appendChild(swatch);
         row.appendChild(name);
+        row.appendChild(hand_count);
         row.appendChild(emoji);
         player_status_panel.appendChild(row);
     });
+};
+
+const render_hand_play_hint = function () {
+    const top_card = Unoludo.top_discard(state);
+    const active_colour = state.active_colour || top_card.colour;
+    const active_colour_hex = player_colour_hex(active_colour);
+    const match_label = card_match_label(top_card);
+
+    if (
+        hand_play_hint === null ||
+        hand_play_colour_swatch === null ||
+        hand_play_colour === null ||
+        hand_play_type === null
+    ) {
+        return;
+    }
+
+    hand_play_colour_swatch.style.background = active_colour_hex;
+    hand_play_colour_swatch.style.boxShadow = "0 0 14px " + active_colour_hex;
+    hand_play_colour.textContent = colour_label(active_colour);
+
+    if (top_card.colour === "wild") {
+        hand_play_type.textContent = "or any Wild";
+    } else {
+        hand_play_type.textContent = "or " + match_label;
+    }
+
+    hand_play_hint.setAttribute(
+        "aria-label",
+        "Can play " + colour_label(active_colour) + " or " + match_label
+    );
 };
 
 const render_info = function () {
@@ -3004,6 +3058,7 @@ const render_info = function () {
     let winner;
 
     render_player_status_panel();
+    render_hand_play_hint();
 
     if (state.winner !== undefined) {
         winner = state.players[state.winner];
