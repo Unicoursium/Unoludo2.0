@@ -498,59 +498,61 @@ const debug_plane_from_input = function (position_input) {
     return undefined;
 };
 
-debug_move_button.addEventListener("click", function () {
-    if (gameMode === "multi") return;
-    const colour = window.prompt(
-        "Choose plane colour: blue, green, red, yellow"
-    );
+if (debug_move_button !== null) {
+    debug_move_button.addEventListener("click", function () {
+        if (gameMode === "multi") return;
+        const colour = window.prompt(
+            "Choose plane colour: blue, green, red, yellow"
+        );
 
-    const plane_index_text = window.prompt(
-        "Choose plane index: 0, 1, 2, or 3"
-    );
+        const plane_index_text = window.prompt(
+            "Choose plane index: 0, 1, 2, or 3"
+        );
 
-    const position_text = window.prompt(
-        "Enter position: number, track:number, home:number, base, or finished"
-    );
+        const position_text = window.prompt(
+            "Enter position: number, track:number, home:number, base, or finished"
+        );
 
-    const player_id = player_id_by_colour(
-        colour === null
-        ? ""
-        : colour.trim().toLowerCase()
-    );
+        const player_id = player_id_by_colour(
+            colour === null
+            ? ""
+            : colour.trim().toLowerCase()
+        );
 
-    const plane_index = Number(plane_index_text);
-    const new_plane = (
-        position_text === null
-        ? undefined
-        : debug_plane_from_input(position_text)
-    );
+        const plane_index = Number(plane_index_text);
+        const new_plane = (
+            position_text === null
+            ? undefined
+            : debug_plane_from_input(position_text)
+        );
 
-    if (
-        player_id === undefined ||
-        !Number.isInteger(plane_index) ||
-        plane_index < 0 ||
-        plane_index > 3 ||
-        new_plane === undefined
-    ) {
-        action_message.textContent = "Debug move failed: invalid input.";
-        return;
-    }
+        if (
+            player_id === undefined ||
+            !Number.isInteger(plane_index) ||
+            plane_index < 0 ||
+            plane_index > 3 ||
+            new_plane === undefined
+        ) {
+            action_message.textContent = "Debug move failed: invalid input.";
+            return;
+        }
 
-    const next_state = Unoludo.update_plane(
-        state,
-        player_id,
-        plane_index,
-        new_plane
-    );
+        const next_state = Unoludo.update_plane(
+            state,
+            player_id,
+            plane_index,
+            new_plane
+        );
 
-    prepare_render_effects(state, next_state, {});
-    state = next_state;
-    clear_selection();
-    action_message.textContent = (
-        "Debug moved " + colour + " plane " + plane_index + "."
-    );
-    render();
-});
+        prepare_render_effects(state, next_state, {});
+        state = next_state;
+        clear_selection();
+        action_message.textContent = (
+            "Debug moved " + colour + " plane " + plane_index + "."
+        );
+        render();
+    });
+}
 
 const colour_from_card_code = function (letter) {
     if (letter === "B") {
@@ -671,33 +673,35 @@ const give_card_to_current_player = function (card) {
     );
 };
 
-give_card_button.addEventListener("click", function () {
-    if (gameMode === "multi") return;
-    const code = window.prompt(
-        "Enter card code, e.g. B3, YR, GS, RP, PW, P4, P7, P8, P9"
-    );
+if (give_card_button !== null) {
+    give_card_button.addEventListener("click", function () {
+        if (gameMode === "multi") return;
+        const code = window.prompt(
+            "Enter card code, e.g. B3, YR, GS, RP, PW, P4, P7, P8, P9"
+        );
 
-    let card;
+        let card;
 
-    if (code === null) {
-        return;
-    }
+        if (code === null) {
+            return;
+        }
 
-    card = create_debug_card_from_code(code);
+        card = create_debug_card_from_code(code);
 
-    if (card === undefined) {
-        action_message.textContent = "Give card failed: invalid card code.";
-        return;
-    }
+        if (card === undefined) {
+            action_message.textContent = "Give card failed: invalid card code.";
+            return;
+        }
 
-    const before_state = state;
+        const before_state = state;
 
-    give_card_to_current_player(card);
-    prepare_render_effects(before_state, state, {});
-    clear_selection();
-    action_message.textContent = "Gave card " + code.toUpperCase() + " to current player.";
-    render();
-});
+        give_card_to_current_player(card);
+        prepare_render_effects(before_state, state, {});
+        clear_selection();
+        action_message.textContent = "Gave card " + code.toUpperCase() + " to current player.";
+        render();
+    });
+}
 
 const render_help_page = function () {
     help_image.src = help_pages[help_page_index];
@@ -2698,6 +2702,23 @@ const render_hand = function () {
 
     hand_cards.replaceChildren();
 
+    if (gameMode !== "multi" && player.kind === "cpu") {
+        const hidden_notice = document.createElement("div");
+        const swatch = document.createElement("span");
+        const name = document.createElement("span");
+
+        hidden_notice.className = "hidden-hand-notice";
+        swatch.className = "hidden-hand-swatch";
+        swatch.style.background = player_colour_hex(player.colour);
+        name.className = "hidden-hand-name";
+        name.textContent = player.name + " is choosing a move";
+
+        hidden_notice.appendChild(swatch);
+        hidden_notice.appendChild(name);
+        hand_cards.appendChild(hidden_notice);
+        return;
+    }
+
     player.hand.forEach(function (card) {
         const image = document.createElement("img");
 
@@ -2978,6 +2999,22 @@ const render = function () {
     schedule_cpu_if_needed();
 };
 
+const update_mode_controls = function () {
+    const restart_button = document.getElementById("reset-demo");
+
+    if (restart_button !== null) {
+        restart_button.hidden = gameMode === "multi";
+    }
+
+    if (debug_move_button !== null) {
+        debug_move_button.hidden = gameMode === "multi";
+    }
+
+    if (give_card_button !== null) {
+        give_card_button.hidden = gameMode === "multi";
+    }
+};
+
 const set_demo_plane = function (status, position) {
     const player = state.players[0];
 
@@ -3158,6 +3195,7 @@ const reset_local_runtime_state = function () {
 window.UnoludoApp = {
     startSinglePlayer: function () {
         gameMode = "single";
+        update_mode_controls();
         myPlayerIndex = 0;
         multiplayerCpuAuthorityIndex = 0;
         mpStateSynced = false;
@@ -3171,6 +3209,7 @@ window.UnoludoApp = {
 
     startMultiPlayer: function (roomId, playerIndex, playerKinds, playerNames) {
         gameMode = "multi";
+        update_mode_controls();
         myPlayerIndex = playerIndex;
         multiplayerCpuAuthorityIndex = (
             window.UnoludoLobby !== undefined &&
@@ -3229,4 +3268,5 @@ if (window.UnoludoLobby !== undefined) {
 initGameState(single_player_names, {
     shuffle: true
 });
+update_mode_controls();
 render();
