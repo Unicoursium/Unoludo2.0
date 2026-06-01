@@ -13,7 +13,6 @@ let target_mode = undefined;
 let cpu_timer = undefined;
 let winner_popup_shown = false;
 let sound_enabled = true;
-let cpu_difficulty = "medium";
 let audio_context = undefined;
 let pending_render_effects = undefined;
 let gameMode = "none";
@@ -22,7 +21,6 @@ let mpStateSynced = false;
 let multiplayerCpuAuthorityIndex = 0;
 const draw_streaks = Object.create(null);
 const CPU_TURN_DELAY = 1600;
-const CPU_DIFFICULTIES = Object.freeze(["easy", "medium", "hard"]);
 const piece_elements = Object.create(null);
 const previous_piece_snapshots = Object.create(null);
 const draw_end_turn_button = document.getElementById("draw-end-turn");
@@ -260,42 +258,6 @@ if (sound_toggle_button !== null) {
     });
 }
 
-const create_cpu_difficulty_button = function () {
-    const button_group = document.querySelector(".right-button-group");
-    const button = document.createElement("button");
-
-    if (button_group === null) {
-        return;
-    }
-
-    button.id = "cpu-difficulty";
-    button.type = "button";
-    button.textContent = "CPU: Medium";
-    button.setAttribute("aria-label", "CPU difficulty: medium");
-
-    button.addEventListener("click", function () {
-        const next_index = (
-            CPU_DIFFICULTIES.indexOf(cpu_difficulty) + 1
-        ) % CPU_DIFFICULTIES.length;
-
-        cpu_difficulty = CPU_DIFFICULTIES[next_index];
-        button.textContent = (
-            "CPU: " +
-            cpu_difficulty.charAt(0).toUpperCase() +
-            cpu_difficulty.slice(1)
-        );
-        button.setAttribute("aria-label", "CPU difficulty: " + cpu_difficulty);
-    });
-
-    if (sound_toggle_button !== null) {
-        sound_toggle_button.insertAdjacentElement("afterend", button);
-        return;
-    }
-
-    button_group.appendChild(button);
-};
-
-create_cpu_difficulty_button();
 const clear_selection = function () {
     selected_card_id = undefined;
     combo_card_id = undefined;
@@ -1162,8 +1124,13 @@ const score_cpu_move = function (before_state, move) {
                 before_plane.status !== "finished" &&
                 after_plane.status === "base"
             ) {
+                const capture_score = 15 + Math.max(0, 12 - close_to_home);
                 details.captures += 1;
-                score += 15 + Math.max(0, 12 - close_to_home);
+                score += (
+                    target_player.kind === "human" && close_to_home <= 8
+                    ? Math.max(6, Math.floor(capture_score * 0.35))
+                    : capture_score
+                );
             }
 
             if (
@@ -1516,6 +1483,17 @@ const find_cpu_reverse_move = function (cpu_state, player) {
 
 const find_cpu_wild_move = function (cpu_state, player) {
     const moves = [];
+    const active_plane_indexes = player.planes
+        .map(function (plane, plane_index) {
+            return is_active_plane(plane) ? plane_index : undefined;
+        })
+        .filter(function (plane_index) {
+            return plane_index !== undefined;
+        });
+
+    if (active_plane_indexes.length === 0) {
+        return moves;
+    }
 
     player.hand.some(function (wild_card) {
         if (
@@ -1534,33 +1512,31 @@ const find_cpu_wild_move = function (cpu_state, player) {
                 return false;
             }
 
-            cpu_state.players.forEach(function (target_player) {
-                target_player.planes.forEach(function (plane, plane_index) {
-                    const next_state = Unoludo.play_wild_combo(
-                        cpu_state,
-                        wild_card.id,
-                        number_card.id,
-                        target_player.id,
-                        plane_index
-                    );
+            active_plane_indexes.forEach(function (plane_index) {
+                const next_state = Unoludo.play_wild_combo(
+                    cpu_state,
+                    wild_card.id,
+                    number_card.id,
+                    player.id,
+                    plane_index
+                );
 
-                    if (next_state !== undefined) {
-                        moves.push(create_cpu_move(
-                            cpu_state,
-                            player,
-                            next_state,
-                            "wild",
-                            player.name + " played Wild combo",
-                            {
-                                card: wild_card,
-                                number_card: number_card,
-                                target_player_id: target_player.id,
-                                plane_index: plane_index,
-                                chosen_colour: number_card.colour
-                            }
-                        ));
-                    }
-                });
+                if (next_state !== undefined) {
+                    moves.push(create_cpu_move(
+                        cpu_state,
+                        player,
+                        next_state,
+                        "wild",
+                        player.name + " played Wild combo",
+                        {
+                            card: wild_card,
+                            number_card: number_card,
+                            target_player_id: player.id,
+                            plane_index: plane_index,
+                            chosen_colour: number_card.colour
+                        }
+                    ));
+                }
             });
 
             return false;
@@ -1619,13 +1595,24 @@ const find_cpu_wild4_move = function (cpu_state, player) {
 
 const find_cpu_reward_move = function (cpu_state, player) {
     const moves = [];
+    const active_plane_indexes = player.planes
+        .map(function (plane, plane_index) {
+            return is_active_plane(plane) ? plane_index : undefined;
+        })
+        .filter(function (plane_index) {
+            return plane_index !== undefined;
+        });
+
+    if (active_plane_indexes.length === 0) {
+        return moves;
+    }
 
     player.hand.some(function (card) {
         if (card.type !== "reward") {
             return false;
         }
 
-        player.planes.forEach(function (plane, plane_index) {
+        active_plane_indexes.forEach(function (plane_index) {
             const next_state = Unoludo.play_reward_card(
                 cpu_state,
                 card.id,
@@ -1644,33 +1631,6 @@ const find_cpu_reward_move = function (cpu_state, player) {
                     {card: card, target_player_id: player.id, plane_index: plane_index}
                 ));
             }
-        });
-
-        cpu_state.players.forEach(function (target_player) {
-            target_player.planes.forEach(function (plane, plane_index) {
-                const next_state = Unoludo.play_reward_card(
-                    cpu_state,
-                    card.id,
-                    target_player.id,
-                    plane_index,
-                    choose_colour_for_cpu(player, cpu_state)
-                );
-
-                if (next_state !== undefined) {
-                    moves.push(create_cpu_move(
-                        cpu_state,
-                        player,
-                        next_state,
-                        "reward",
-                        player.name + " played reward " + card.value,
-                        {
-                            card: card,
-                            target_player_id: target_player.id,
-                            plane_index: plane_index
-                        }
-                    ));
-                }
-            });
         });
 
         return false;
@@ -1697,24 +1657,12 @@ const select_cpu_move = function (moves) {
         return undefined;
     }
 
-    if (cpu_difficulty === "easy") {
-        return moves[Math.floor(Math.random() * moves.length)];
-    }
-
     return moves.reduce(function (best_move, move) {
-        const move_score = (
-            cpu_difficulty === "medium"
-            ? move.score * (0.8 + Math.random() * 0.4)
-            : move.score
-        );
+        const move_score = move.score * (0.8 + Math.random() * 0.4);
         const best_score = (
             best_move.adjusted_score !== undefined
             ? best_move.adjusted_score
-            : (
-                cpu_difficulty === "medium"
-                ? best_move.score * (0.8 + Math.random() * 0.4)
-                : best_move.score
-            )
+            : best_move.score * (0.8 + Math.random() * 0.4)
         );
 
         move.adjusted_score = move_score;
