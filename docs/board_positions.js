@@ -10,140 +10,121 @@
 const UnoludoBoard = Object.create(null);
 
 /**
- * Main track coordinates.
+ * Main track coordinates for Board V3.
  *
- * Index 0 corresponds to track position 0 in unoludo.js.
- * Index 1 corresponds to track position 1, etc.
+ * Index 0 is the grey triangle immediately after the blue gate.
+ * The four coloured gate triangles are not part of this list.
  *
  * @memberof UnoludoBoard
  * @type {Object[]}
  */
 UnoludoBoard.track_positions = Object.freeze([
-    Object.freeze({x: 40.04, y: 92.88}),
-    Object.freeze({x: 38.78, y: 88.25}),
-    Object.freeze({x: 38.78, y: 84.32}),
-    Object.freeze({x: 38.92, y: 79.97}),
-    Object.freeze({x: 38.78, y: 75.62}),
-    Object.freeze({x: 38.78, y: 71.41}),
-    Object.freeze({x: 38.78, y: 67.2}),
-    Object.freeze({x: 40.32, y: 62.57}),
-    Object.freeze({x: 37.37, y: 60.05}),
-    Object.freeze({x: 33.02, y: 61.03}),
-    Object.freeze({x: 28.82, y: 61.17}),
-    Object.freeze({x: 24.61, y: 61.17}),
-    Object.freeze({x: 20.4, y: 61.31}),
-    Object.freeze({x: 16.05, y: 61.45}),
-    Object.freeze({x: 11.84, y: 61.45}),
-    Object.freeze({x: 7.63, y: 62.86}),
-    Object.freeze({x: 4.82, y: 59.91}),
-    Object.freeze({x: 6.09, y: 55.7}),
-    Object.freeze({x: 6.09, y: 50.23}),
-    Object.freeze({x: 6.37, y: 44.48}),
-    Object.freeze({x: 7.35, y: 39.99}),
-    Object.freeze({x: 11.98, y: 38.44}),
-    Object.freeze({x: 16.19, y: 38.72}),
-    Object.freeze({x: 20.26, y: 38.72}),
-    Object.freeze({x: 24.47, y: 38.44}),
-    Object.freeze({x: 28.96, y: 38.72}),
-    Object.freeze({x: 33.45, y: 38.58}),
-    Object.freeze({x: 37.09, y: 40.13}),
-    Object.freeze({x: 40.04, y: 37.32}),
-    Object.freeze({x: 38.64, y: 33.11}),
-    Object.freeze({x: 38.64, y: 28.76}),
-    Object.freeze({x: 38.5, y: 24.41}),
-    Object.freeze({x: 38.36, y: 19.78}),
-    Object.freeze({x: 38.5, y: 15.85}),
-    Object.freeze({x: 38.64, y: 11.79}),
-    Object.freeze({x: 37.23, y: 7.58}),
-    Object.freeze({x: 40.46, y: 4.49}),
-    Object.freeze({x: 44.25, y: 6.17}),
-    Object.freeze({x: 50, y: 6.31}),
-    Object.freeze({x: 55.61, y: 6.45}),
-    Object.freeze({x: 60.1, y: 7.44}),
-    Object.freeze({x: 61.65, y: 11.93}),
-    Object.freeze({x: 61.37, y: 15.71}),
-    Object.freeze({x: 61.08, y: 20.2}),
-    Object.freeze({x: 61.08, y: 24.27}),
-    Object.freeze({x: 61.37, y: 28.76}),
-    Object.freeze({x: 61.37, y: 32.97}),
-    Object.freeze({x: 59.82, y: 37.18}),
-    Object.freeze({x: 63.05, y: 40.41}),
-    Object.freeze({x: 67.12, y: 39}),
-    Object.freeze({x: 71.47, y: 39.14}),
-    Object.freeze({x: 75.96, y: 38.86}),
-    Object.freeze({x: 79.89, y: 38.72}),
-    Object.freeze({x: 83.67, y: 38.72}),
-    Object.freeze({x: 88.3, y: 38.58}),
-    Object.freeze({x: 92.09, y: 37.32}),
-    Object.freeze({x: 95.18, y: 39.99}),
-    Object.freeze({x: 94.06, y: 44.62}),
-    Object.freeze({x: 93.92, y: 49.81}),
-    Object.freeze({x: 93.78, y: 55.56}),
-    Object.freeze({x: 92.37, y: 60.47}),
-    Object.freeze({x: 88.02, y: 61.31}),
-    Object.freeze({x: 83.67, y: 61.03}),
-    Object.freeze({x: 79.32, y: 61.17}),
-    Object.freeze({x: 75.26, y: 61.03}),
-    Object.freeze({x: 70.91, y: 61.17}),
-    Object.freeze({x: 66.84, y: 61.17}),
-    Object.freeze({x: 62.91, y: 59.77}),
-    Object.freeze({x: 59.68, y: 62.57}),
-    Object.freeze({x: 61.23, y: 67.06}),
-    Object.freeze({x: 61.08, y: 71.55}),
-    Object.freeze({x: 60.8, y: 75.48}),
-    Object.freeze({x: 61.37, y: 79.69}),
-    Object.freeze({x: 61.08, y: 83.9}),
-    Object.freeze({x: 61.23, y: 88.39}),
-    Object.freeze({x: 62.49, y: 92.74}),
-    Object.freeze({x: 59.54, y: 95.26}),
-    Object.freeze({x: 55.61, y: 93.72}),
-    Object.freeze({x: 49.86, y: 93.86}),
-    Object.freeze({x: 44.25, y: 94})
+    Object.freeze({x: 29.79, y: 92.06}),
+    Object.freeze({x: 28.11, y: 85.61}),
+    Object.freeze({x: 28.11, y: 78.74}),
+    Object.freeze({x: 29.46, y: 72.59}),
+    Object.freeze({x: 26.76, y: 69.89}),
+    Object.freeze({x: 20.61, y: 71.24}),
+    Object.freeze({x: 13.74, y: 71.24}),
+    Object.freeze({x: 7.50, y: 69.98}),
+    Object.freeze({x: 6.24, y: 63.74}),
+    Object.freeze({x: 6.24, y: 56.86}),
+    Object.freeze({x: 6.24, y: 49.99}),
+    Object.freeze({x: 6.24, y: 43.11}),
+    Object.freeze({x: 6.24, y: 36.24}),
+    Object.freeze({x: 7.91, y: 29.79}),
+    Object.freeze({x: 14.36, y: 28.11}),
+    Object.freeze({x: 21.24, y: 28.11}),
+    Object.freeze({x: 27.39, y: 29.46}),
+    Object.freeze({x: 29.65, y: 26.62}),
+    Object.freeze({x: 28.74, y: 20.61}),
+    Object.freeze({x: 28.74, y: 13.74}),
+    Object.freeze({x: 30.00, y: 7.50}),
+    Object.freeze({x: 36.24, y: 6.24}),
+    Object.freeze({x: 43.11, y: 6.24}),
+    Object.freeze({x: 49.99, y: 6.24}),
+    Object.freeze({x: 56.86, y: 6.24}),
+    Object.freeze({x: 63.74, y: 6.24}),
+    Object.freeze({x: 70.19, y: 7.91}),
+    Object.freeze({x: 71.86, y: 14.36}),
+    Object.freeze({x: 71.86, y: 21.24}),
+    Object.freeze({x: 70.51, y: 27.39}),
+    Object.freeze({x: 73.21, y: 29.96}),
+    Object.freeze({x: 79.36, y: 28.74}),
+    Object.freeze({x: 86.24, y: 28.74}),
+    Object.freeze({x: 92.48, y: 30.00}),
+    Object.freeze({x: 93.74, y: 36.24}),
+    Object.freeze({x: 93.74, y: 43.11}),
+    Object.freeze({x: 93.74, y: 49.99}),
+    Object.freeze({x: 93.74, y: 56.86}),
+    Object.freeze({x: 93.74, y: 63.74}),
+    Object.freeze({x: 92.06, y: 70.19}),
+    Object.freeze({x: 85.61, y: 71.86}),
+    Object.freeze({x: 78.74, y: 71.86}),
+    Object.freeze({x: 72.59, y: 70.51}),
+    Object.freeze({x: 70.33, y: 73.35}),
+    Object.freeze({x: 71.24, y: 79.36}),
+    Object.freeze({x: 71.24, y: 86.24}),
+    Object.freeze({x: 69.98, y: 92.48}),
+    Object.freeze({x: 63.74, y: 93.74}),
+    Object.freeze({x: 56.86, y: 93.74}),
+    Object.freeze({x: 49.99, y: 93.74}),
+    Object.freeze({x: 43.11, y: 93.74}),
+    Object.freeze({x: 36.24, y: 93.74})
 ]);
 
 /**
  * Home lane coordinates for each plane colour.
+ *
+ * The coloured door tile on the track is excluded; each lane has five tiles.
  *
  * @memberof UnoludoBoard
  * @type {Object}
  */
 UnoludoBoard.home_positions = Object.freeze({
     blue: Object.freeze([
-        Object.freeze({x: 49.72, y: 88.39}),
-        Object.freeze({x: 49.86, y: 84.04}),
-        Object.freeze({x: 49.72, y: 79.55}),
-        Object.freeze({x: 49.86, y: 75.34}),
-        Object.freeze({x: 50, y: 71.13}),
-        Object.freeze({x: 49.86, y: 67.2}),
-        Object.freeze({x: 49.86, y: 63})
+        Object.freeze({x: 49.99, y: 86.61}),
+        Object.freeze({x: 49.99, y: 80.49}),
+        Object.freeze({x: 49.99, y: 74.36}),
+        Object.freeze({x: 49.99, y: 68.24}),
+        Object.freeze({x: 49.99, y: 62.11})
     ]),
     green: Object.freeze([
-        Object.freeze({x: 11.98, y: 50.09}),
-        Object.freeze({x: 16.05, y: 49.95}),
-        Object.freeze({x: 20.26, y: 49.81}),
-        Object.freeze({x: 24.47, y: 49.95}),
-        Object.freeze({x: 28.68, y: 49.81}),
-        Object.freeze({x: 33.02, y: 50.23}),
-        Object.freeze({x: 37.09, y: 50.09})
+        Object.freeze({x: 13.36, y: 49.99}),
+        Object.freeze({x: 19.49, y: 49.99}),
+        Object.freeze({x: 25.61, y: 49.99}),
+        Object.freeze({x: 31.74, y: 49.99}),
+        Object.freeze({x: 37.86, y: 49.99})
     ]),
     red: Object.freeze([
-        Object.freeze({x: 49.72, y: 11.79}),
-        Object.freeze({x: 49.72, y: 15.99}),
-        Object.freeze({x: 49.58, y: 20.06}),
-        Object.freeze({x: 49.72, y: 24.55}),
-        Object.freeze({x: 49.86, y: 28.76}),
-        Object.freeze({x: 50, y: 32.83}),
-        Object.freeze({x: 49.86, y: 37.18})
+        Object.freeze({x: 49.99, y: 13.36}),
+        Object.freeze({x: 49.99, y: 19.49}),
+        Object.freeze({x: 49.99, y: 25.61}),
+        Object.freeze({x: 49.99, y: 31.74}),
+        Object.freeze({x: 49.99, y: 37.86})
     ]),
     yellow: Object.freeze([
-        Object.freeze({x: 88.16, y: 49.95}),
-        Object.freeze({x: 83.81, y: 49.95}),
-        Object.freeze({x: 79.6, y: 49.95}),
-        Object.freeze({x: 75.54, y: 49.95}),
-        Object.freeze({x: 71.19, y: 49.95}),
-        Object.freeze({x: 67.12, y: 50.09}),
-        Object.freeze({x: 62.49, y: 49.95})
+        Object.freeze({x: 86.61, y: 49.99}),
+        Object.freeze({x: 80.49, y: 49.99}),
+        Object.freeze({x: 74.36, y: 49.99}),
+        Object.freeze({x: 68.24, y: 49.99}),
+        Object.freeze({x: 62.11, y: 49.99})
     ])
+});
+
+/**
+ * Gate coordinates for newly launched planes.
+ *
+ * These tiles sit between base and track and are not counted as track spaces.
+ *
+ * @memberof UnoludoBoard
+ * @type {Object}
+ */
+UnoludoBoard.gate_positions = Object.freeze({
+    blue: Object.freeze({x: 26.23, y: 95.00}),
+    green: Object.freeze({x: 4.98, y: 26.23}),
+    red: Object.freeze({x: 73.75, y: 4.98}),
+    yellow: Object.freeze({x: 95.00, y: 73.75})
 });
 
 /**
@@ -154,36 +135,29 @@ UnoludoBoard.home_positions = Object.freeze({
  */
 UnoludoBoard.base_positions = Object.freeze({
     blue: Object.freeze([
-        Object.freeze({x: 7.5, y: 82.44}),
-        Object.freeze({x: 17.5, y: 82.44}),
-        Object.freeze({x: 7.5, y: 92.32}),
-        Object.freeze({x: 17.5, y: 92.32})
+        Object.freeze({x: 7.49, y: 82.49}),
+        Object.freeze({x: 17.49, y: 82.49}),
+        Object.freeze({x: 7.49, y: 92.49}),
+        Object.freeze({x: 17.49, y: 92.49})
     ]),
     green: Object.freeze([
-        Object.freeze({x: 7.5, y: 7.5}),
-        Object.freeze({x: 17.5, y: 7.5}),
-        Object.freeze({x: 7.5, y: 17.5}),
-        Object.freeze({x: 17.5, y: 17.5})
+        Object.freeze({x: 7.49, y: 7.49}),
+        Object.freeze({x: 17.49, y: 7.49}),
+        Object.freeze({x: 7.49, y: 17.49}),
+        Object.freeze({x: 17.49, y: 17.49})
     ]),
     red: Object.freeze([
-        Object.freeze({x: 82.44, y: 7.5}),
-        Object.freeze({x: 92.37, y: 7.5}),
-        Object.freeze({x: 82.44, y: 17.5}),
-        Object.freeze({x: 92.37, y: 17.5})
+        Object.freeze({x: 82.49, y: 7.49}),
+        Object.freeze({x: 92.49, y: 7.49}),
+        Object.freeze({x: 82.49, y: 17.49}),
+        Object.freeze({x: 92.49, y: 17.49})
     ]),
     yellow: Object.freeze([
-        Object.freeze({x: 82.44, y: 82.44}),
-        Object.freeze({x: 92.37, y: 82.44}),
-        Object.freeze({x: 82.44, y: 92.37}),
-        Object.freeze({x: 92.37, y: 92.37})
+        Object.freeze({x: 82.49, y: 82.49}),
+        Object.freeze({x: 92.49, y: 82.49}),
+        Object.freeze({x: 82.49, y: 92.49}),
+        Object.freeze({x: 92.49, y: 92.49})
     ])
-});
-
-UnoludoBoard.launch_positions = Object.freeze({
-    blue: Object.freeze({x: 26.71, y: 94.56}),
-    green: Object.freeze({x: 4.82, y: 26.52}),
-    red: Object.freeze({x: 73.71, y: 5.05}),
-    yellow: Object.freeze({x: 95.04, y: 73.38})
 });
 
 /**
@@ -199,6 +173,10 @@ UnoludoBoard.launch_positions = Object.freeze({
 UnoludoBoard.position_for_plane = function (plane, colour, plane_index) {
     if (plane.status === "base") {
         return UnoludoBoard.base_positions[colour][plane_index];
+    }
+
+    if (plane.status === "gate") {
+        return UnoludoBoard.gate_positions[colour];
     }
 
     if (plane.status === "track") {

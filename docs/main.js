@@ -448,6 +448,15 @@ const debug_plane_from_input = function (position_input) {
         });
     }
 
+    if (trimmed === "gate") {
+        return Object.freeze({
+            status: "gate",
+            position: -1,
+            shielded: false,
+            frozen: false
+        });
+    }
+
     if (trimmed === "finished") {
         return Object.freeze({
             status: "finished",
@@ -510,7 +519,7 @@ if (debug_move_button !== null) {
         );
 
         const position_text = window.prompt(
-            "Enter position: number, track:number, home:number, base, or finished"
+            "Enter position: number, track:number, home:number, gate, base, or finished"
         );
 
         const player_id = player_id_by_colour(
@@ -745,7 +754,11 @@ open_log_button.addEventListener("click", open_log);
 close_log_button.addEventListener("click", close_log);
 
 const is_active_plane = function (plane) {
-    return plane.status === "track" || plane.status === "home";
+    return (
+        plane.status === "gate" ||
+        plane.status === "track" ||
+        plane.status === "home"
+    );
 };
 
 const track_distance = function (from_position, to_position) {
@@ -766,11 +779,15 @@ const plane_progress = function (player, plane) {
 
     if (plane.status === "home") {
         entry_distance = track_distance(start_position, entry_position);
-        return entry_distance + 1 + plane.position;
+        return entry_distance + 2 + plane.position;
     }
 
     if (plane.status === "track") {
-        return track_distance(start_position, plane.position);
+        return track_distance(start_position, plane.position) + 1;
+    }
+
+    if (plane.status === "gate") {
+        return 0;
     }
 
     return -1;
@@ -787,6 +804,7 @@ const distance_to_home = function (player, plane) {
 
     if (plane.status === "track") {
         return (
+            1 +
             track_distance(
                 plane.position,
                 Unoludo.home_entry_positions[player.colour]
@@ -1107,7 +1125,7 @@ const score_cpu_move = function (before_state, move) {
         const after_progress = plane_progress(player, after_plane);
         const gained = Math.max(0, after_progress - before_progress);
 
-        if (before_plane.status === "base" && after_plane.status === "track") {
+        if (before_plane.status === "base" && after_plane.status === "gate") {
             details.launched = true;
             score += 8;
         }
@@ -2268,6 +2286,10 @@ const play_wild_on_plane = function (target_player_id, plane_index) {
 const plane_position_key = function (player, plane, plane_index) {
     if (plane.status === "base") {
         return player.colour + "-base-" + plane_index;
+    }
+
+    if (plane.status === "gate") {
+        return player.colour + "-gate";
     }
 
     if (plane.status === "track") {

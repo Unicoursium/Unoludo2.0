@@ -54,7 +54,7 @@ Unoludo.number_values = Object.freeze([0, 1, 2, 3, 4, 5, 6]);
  * A plane controlled by one player.
  * @memberof Unoludo
  * @typedef {Object} Plane
- * @property {"base" | "track" | "home" | "finished"} status The plane's current area.
+ * @property {"base" | "gate" | "track" | "home" | "finished"} status The plane's current area.
  * @property {number} position The plane's position. -1 means not on a path.
  * @property {boolean} shielded Whether the plane is protected from being sent back to base.
  * @property {boolean} frozen Whether the plane is unable to move this turn.
@@ -708,27 +708,27 @@ Unoludo.add_log = function (state, message) {
  * @memberof Unoludo
  * @readonly
  */
-Unoludo.track_length = 80;
+Unoludo.track_length = 52;
 
 /**
  * The number of spaces in each home lane.
  * @memberof Unoludo
  * @readonly
  */
-Unoludo.home_lane_length = 7;
+Unoludo.home_lane_length = 5;
 
 Unoludo.start_positions = Object.freeze({
     blue: 0,
-    green: 20,
-    red: 40,
-    yellow: 60
+    green: 13,
+    red: 26,
+    yellow: 39
 });
 
 Unoludo.home_entry_positions = Object.freeze({
-    blue: 78,
-    green: 18,
-    red: 38,
-    yellow: 58
+    blue: 49,
+    green: 10,
+    red: 23,
+    yellow: 36
 });
 
 
@@ -1195,8 +1195,8 @@ Unoludo.play_reward_card = function (
 
     if (target_plane.status === "base") {
         moved_plane = Object.freeze({
-            status: "track",
-            position: Unoludo.start_positions[target_player.colour],
+            status: "gate",
+            position: -1,
             shielded: false,
             frozen: false
         });
@@ -1235,7 +1235,7 @@ Unoludo.play_reward_card = function (
             + ", and " + (target_plane.status === "base" ? "launched" : "moved")
             + " " + target_player.name + "'s plane "
             + target_plane_index
-            + (target_plane.status === "base" ? " to the track." : " forward by " + card.value + ".")
+            + (target_plane.status === "base" ? " to the gate." : " forward by " + card.value + ".")
         ]))
     });
 
@@ -1264,7 +1264,7 @@ Unoludo.play_reward_card = function (
  * Move an active plane forward.
  *
  * This simplified movement model treats the board as:
- * main track -> home lane -> finished.
+ * gate -> main track -> home lane -> finished.
  * Overshooting the final home position is illegal.
  *
  * @function
@@ -1291,9 +1291,37 @@ const has_passed_home_entry = function (start_position, steps, entry_position) {
 
 const move_active_plane = function (plane, steps, colour) {
     const entry_position = Unoludo.home_entry_positions[colour];
+    const start_position = Unoludo.start_positions[colour];
+    const remaining_steps = steps - 1;
     let distance_to_entry;
     let home_position;
     let next_position;
+
+    if (plane.status === "gate") {
+        if (start_position === undefined || steps <= 0) {
+            return undefined;
+        }
+
+        if (remaining_steps === 0) {
+            return Object.freeze({
+                status: "track",
+                position: start_position,
+                shielded: plane.shielded,
+                frozen: plane.frozen
+            });
+        }
+
+        return move_active_plane(
+            Object.freeze({
+                status: "track",
+                position: start_position,
+                shielded: plane.shielded,
+                frozen: plane.frozen
+            }),
+            remaining_steps,
+            colour
+        );
+    }
 
     if (plane.status === "track") {
         if (entry_position === undefined) {
@@ -1540,7 +1568,7 @@ Unoludo.play_zero_card = function (state, card_id, plane_index) {
 /**
  * Play a number card from 1 to 6.
  *
- * A 6 card can launch a matching-colour plane from base to the start tile.
+ * A 6 card launches a matching-colour plane from base to the gate.
  * Otherwise, number cards move an active matching-colour plane by their value.
  *
  * @memberof Unoludo
@@ -1594,15 +1622,15 @@ Unoludo.play_number_card = function (state, card_id, plane_index) {
         }
 
         new_plane = Object.freeze({
-            status: "track",
-            position: Unoludo.start_positions[player.colour],
+            status: "gate",
+            position: -1,
             shielded: false,
             frozen: false
         });
 
         message = (
             player.name + " played " + card.colour + " 6 and launched "
-            + player.colour + "."
+            + player.colour + " to the gate."
         );
     } else {
         new_plane = move_active_plane(plane, card.value, player.colour);
@@ -1829,6 +1857,10 @@ const move_plane_backward = function (plane, steps, colour) {
 
     if (plane.status === "base" || plane.status === "finished") {
         return undefined;
+    }
+
+    if (plane.status === "gate") {
+        return plane_returned_to_base();
     }
 
     if (plane.status === "track") {
@@ -2111,8 +2143,8 @@ Unoludo.play_wild_combo = function (
         }
 
         moved_plane = Object.freeze({
-            status: "track",
-            position: Unoludo.start_positions[target_player.colour],
+            status: "gate",
+            position: -1,
             shielded: false,
             frozen: false
         });
