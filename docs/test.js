@@ -147,6 +147,43 @@ assert.deepEqual(nextState.players[0].planes[0], {
     frozen: false
 });
 
+const shieldPlayer = withPlane(
+    withHand(basePlayer, [Unoludo.card("blue-0-shield", "number", "blue", 0)]),
+    Object.freeze({
+        status: "track",
+        position: 8,
+        shielded: false,
+        frozen: false
+    })
+);
+const shieldOpponent = Object.freeze({
+    id: 1,
+    name: "Opponent",
+    colour: "green",
+    kind: "human",
+    hand: Object.freeze([]),
+    planes: Unoludo.empty_planes()
+});
+
+state = makeMultiState(
+    [shieldPlayer, shieldOpponent],
+    Unoludo.card("top-shield", "number", "blue", 5)
+);
+nextState = Unoludo.play_zero_card(state, "blue-0-shield", 0);
+assert.equal(nextState.players[0].planes[0].shielded, 2);
+
+nextState = Unoludo.end_turn(nextState);
+assert.equal(nextState.players[0].planes[0].shielded, 2);
+
+nextState = Unoludo.end_turn(nextState);
+assert.equal(nextState.players[0].planes[0].shielded, 1);
+
+nextState = Unoludo.end_turn(nextState);
+assert.equal(nextState.players[0].planes[0].shielded, 1);
+
+nextState = Unoludo.end_turn(nextState);
+assert.equal(nextState.players[0].planes[0].shielded, false);
+
 player = withPlane(
     withHand(basePlayer, [Unoludo.card("blue-1", "number", "blue", 1)]),
     Object.freeze({
@@ -223,6 +260,51 @@ assert.deepEqual(nextState.players[0].planes[0], {
         shielded: false,
         frozen: false
     });
+});
+
+const wild4Player = Object.freeze({
+    id: 0,
+    name: "Wild",
+    colour: "blue",
+    kind: "human",
+    hand: Object.freeze([Unoludo.card("wild4-advance", "wild4", "wild")]),
+    planes: Object.freeze([
+        Object.freeze({
+            status: "track",
+            position: 5,
+            shielded: false,
+            frozen: false
+        }),
+        Object.freeze({
+            status: "gate",
+            position: -1,
+            shielded: false,
+            frozen: false
+        }),
+        Unoludo.empty_plane(),
+        Unoludo.empty_plane()
+    ])
+});
+
+state = makeState(wild4Player, Unoludo.card("top-wild4", "number", "blue", 4));
+nextState = Unoludo.play_wild4_card(
+    state,
+    "wild4-advance",
+    "advance_all",
+    "blue"
+);
+
+assert.deepEqual(nextState.players[0].planes[0], {
+    status: "track",
+    position: 9,
+    shielded: false,
+    frozen: false
+});
+assert.deepEqual(nextState.players[0].planes[1], {
+    status: "track",
+    position: 3,
+    shielded: false,
+    frozen: false
 });
 
 const disruptor = Object.freeze({

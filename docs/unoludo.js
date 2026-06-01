@@ -56,7 +56,7 @@ Unoludo.number_values = Object.freeze([0, 1, 2, 3, 4, 5, 6]);
  * @typedef {Object} Plane
  * @property {"base" | "gate" | "track" | "home" | "finished"} status The plane's current area.
  * @property {number} position The plane's position. -1 means not on a path.
- * @property {boolean} shielded Whether the plane is protected from being sent back to base.
+ * @property {(boolean | number)} shielded Whether the plane is protected from being sent back to base.
  * @property {boolean} frozen Whether the plane is unable to move this turn.
  */
 
@@ -1036,13 +1036,25 @@ const grant_empty_hand_bonus = function (state, player_id) {
 
 
 /**
- * Clear all shields from a player.
+ * Advance shield timers for a player.
  *
  * @function
  * @param {Unoludo.Player} player The player to update.
  * @returns {Unoludo.Player} The updated player.
  */
-const clear_shields = function (player) {
+const shield_turns_remaining = function (shielded) {
+    if (shielded === true) {
+        return 1;
+    }
+
+    if (typeof shielded === "number") {
+        return Math.max(0, shielded);
+    }
+
+    return 0;
+};
+
+const advance_shields = function (player) {
     return Object.freeze({
         id: player.id,
         name: player.name,
@@ -1050,10 +1062,16 @@ const clear_shields = function (player) {
         kind: player.kind,
         hand: player.hand,
         planes: Object.freeze(player.planes.map(function (plane) {
+            const remaining_turns = shield_turns_remaining(plane.shielded) - 1;
+
             return Object.freeze({
                 status: plane.status,
                 position: plane.position,
-                shielded: false,
+                shielded: (
+                    remaining_turns > 0
+                    ? remaining_turns
+                    : false
+                ),
                 frozen: plane.frozen
             });
         }))
@@ -1089,8 +1107,7 @@ const clear_frozen = function (player) {
  * End the current player's turn.
  *
  * Frozen states are cleared from the player whose turn is ending.
- * Shields are cleared from the player whose turn is beginning, because
- * shields last until the start of that player's next turn.
+ * Shields tick down from the player whose turn is beginning.
  *
  * @memberof Unoludo
  * @function
@@ -1102,7 +1119,7 @@ Unoludo.end_turn = function (state) {
     const current_player_cleared = clear_frozen(current_player);
     const next_player_id = Unoludo.next_player_id(state);
     const next_player = state.players[next_player_id];
-    const next_player_cleared = clear_shields(next_player);
+    const next_player_cleared = advance_shields(next_player);
 
     let players = replace_player(
         state.players,
@@ -1657,7 +1674,7 @@ Unoludo.play_zero_card = function (state, card_id, plane_index) {
     new_plane = Object.freeze({
         status: plane.status,
         position: plane.position,
-        shielded: true,
+        shielded: 2,
         frozen: plane.frozen
     });
 
@@ -2308,10 +2325,10 @@ Unoludo.play_wild_combo = function (
 };
 
 /**
- * Advance all active planes belonging to one player by two spaces.
+ * Advance all active planes belonging to one player by four spaces.
  *
  * Planes in base or finished are not affected. If any active plane cannot move
- * by exactly two spaces, that plane stays where it is.
+ * by exactly four spaces, that plane stays where it is.
  *
  * @function
  * @param {Unoludo.Player} player The player whose planes are advanced.
@@ -2325,7 +2342,7 @@ const advance_all_active_planes = function (player) {
         kind: player.kind,
         hand: player.hand,
         planes: Object.freeze(player.planes.map(function (plane) {
-            const moved_plane = move_active_plane(plane, 2, player.colour);
+            const moved_plane = move_active_plane(plane, 4, player.colour);
 
             if (moved_plane === undefined) {
                 return plane;
@@ -2341,7 +2358,7 @@ const advance_all_active_planes = function (player) {
  *
  * Wild +4 gives the player a choice:
  * - "draw4": draw four cards;
- * - "advance_all": move all active own planes forward by two spaces.
+ * - "advance_all": move all active own planes forward by four spaces.
  *
  * Planes in base or finished are not affected by "advance_all".
  *

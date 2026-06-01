@@ -15,14 +15,20 @@ let winner_popup_shown = false;
 let sound_enabled = true;
 let audio_context = undefined;
 let pending_render_effects = undefined;
+let active_piece_animations = 0;
 let gameMode = "none";
 let myPlayerIndex = 0;
 let mpStateSynced = false;
 let multiplayerCpuAuthorityIndex = 0;
 const draw_streaks = Object.create(null);
 const CPU_TURN_DELAY = 1600;
+const PIECE_STEP_INTERVAL = 230;
+const PIECE_STEP_VARIATIONS = Object.freeze([-18, 12, -7, 20, -12, 8]);
+const PIECE_STEP_START_DELAY = 90;
+const PIECE_STEP_FINISH_DELAY = 140;
 const piece_elements = Object.create(null);
 const previous_piece_snapshots = Object.create(null);
+const piece_animation_tokens = Object.create(null);
 const draw_end_turn_button = document.getElementById("draw-end-turn");
 const sound_toggle_button = document.getElementById("sound-toggle");
 
@@ -768,6 +774,13 @@ const is_active_plane = function (plane) {
     );
 };
 
+const is_cpu_self_target_plane = function (plane) {
+    return (
+        plane.status === "base" ||
+        is_active_plane(plane)
+    );
+};
+
 const track_distance = function (from_position, to_position) {
     return (
         (to_position - from_position + Unoludo.track_length) %
@@ -1159,7 +1172,11 @@ const score_cpu_move = function (before_state, move) {
 
         if (before_plane.status === "base" && after_plane.status === "gate") {
             details.launched = true;
-            score += 8;
+            score += (
+                move.kind === "reward" || move.kind === "wild"
+                ? 32
+                : 24
+            );
         }
 
         if (before_plane.status !== "finished" && after_plane.status === "finished") {
@@ -1199,6 +1216,17 @@ const score_cpu_move = function (before_state, move) {
     if (move.kind === "draw2" && player.hand.length < 4) {
         details.draw_pressure = true;
         score += 6;
+    }
+
+    if (
+        move.target_player_id === player.id &&
+        (
+            move.kind === "reward" ||
+            move.kind === "wild" ||
+            move.kind === "wild4"
+        )
+    ) {
+        score += 14;
     }
 
     if (move.kind === "wild4" && move.option === "advance_all") {
@@ -1483,15 +1511,15 @@ const find_cpu_reverse_move = function (cpu_state, player) {
 
 const find_cpu_wild_move = function (cpu_state, player) {
     const moves = [];
-    const active_plane_indexes = player.planes
+    const self_plane_indexes = player.planes
         .map(function (plane, plane_index) {
-            return is_active_plane(plane) ? plane_index : undefined;
+            return is_cpu_self_target_plane(plane) ? plane_index : undefined;
         })
         .filter(function (plane_index) {
             return plane_index !== undefined;
         });
 
-    if (active_plane_indexes.length === 0) {
+    if (self_plane_indexes.length === 0) {
         return moves;
     }
 
@@ -1512,7 +1540,7 @@ const find_cpu_wild_move = function (cpu_state, player) {
                 return false;
             }
 
-            active_plane_indexes.forEach(function (plane_index) {
+            self_plane_indexes.forEach(function (plane_index) {
                 const next_state = Unoludo.play_wild_combo(
                     cpu_state,
                     wild_card.id,
@@ -1595,15 +1623,15 @@ const find_cpu_wild4_move = function (cpu_state, player) {
 
 const find_cpu_reward_move = function (cpu_state, player) {
     const moves = [];
-    const active_plane_indexes = player.planes
+    const self_plane_indexes = player.planes
         .map(function (plane, plane_index) {
-            return is_active_plane(plane) ? plane_index : undefined;
+            return is_cpu_self_target_plane(plane) ? plane_index : undefined;
         })
         .filter(function (plane_index) {
             return plane_index !== undefined;
         });
 
-    if (active_plane_indexes.length === 0) {
+    if (self_plane_indexes.length === 0) {
         return moves;
     }
 
@@ -1612,7 +1640,7 @@ const find_cpu_reward_move = function (cpu_state, player) {
             return false;
         }
 
-        active_plane_indexes.forEach(function (plane_index) {
+        self_plane_indexes.forEach(function (plane_index) {
             const next_state = Unoludo.play_reward_card(
                 cpu_state,
                 card.id,
@@ -1653,11 +1681,32 @@ const all_cpu_moves = function (cpu_state, player) {
 };
 
 const select_cpu_move = function (moves) {
+    const priority_moves = moves.filter(function (move) {
+        return (
+            (
+                move.target_player_id === move.player_id &&
+                (
+                    move.kind === "reward" ||
+                    move.kind === "wild"
+                )
+            ) ||
+            (
+                move.kind === "wild4" &&
+                move.option === "advance_all"
+            )
+        );
+    });
+    const candidate_moves = (
+        priority_moves.length > 0
+        ? priority_moves
+        : moves
+    );
+
     if (moves.length === 0) {
         return undefined;
     }
 
-    return moves.reduce(function (best_move, move) {
+    return candidate_moves.reduce(function (best_move, move) {
         const move_score = move.score * (0.8 + Math.random() * 0.4);
         const best_score = (
             best_move.adjusted_score !== undefined
@@ -1757,6 +1806,10 @@ const cpu_take_turn = function () {
 };
 
 const schedule_cpu_if_needed = function () {
+    if (active_piece_animations !== 0) {
+        return;
+    }
+
     // In multiplayer, the host is the single authority for CPU turns.
     if (gameMode === "multi") {
         const player = Unoludo.current_player(state);
@@ -1931,6 +1984,188 @@ const board_relative_rect = function (rect) {
     };
 };
 
+const plane_visual_position = function (player, plane, plane_index) {
+    if (plane.status === "finished") {
+        return UnoludoBoard.base_positions[player.colour][plane_index];
+    }
+
+    return UnoludoBoard.position_for_plane(plane, player.colour, plane_index);
+};
+
+const push_path_position = function (path, player, plane, plane_index) {
+    const position = plane_visual_position(player, plane, plane_index);
+
+    if (position !== undefined) {
+        path.push(position);
+    }
+};
+
+const build_forward_track_path = function (from_position, to_position) {
+    const path = [];
+    let position = from_position;
+    let guard = 0;
+
+    while (position !== to_position && guard < Unoludo.track_length) {
+        position = (position + 1) % Unoludo.track_length;
+        path.push(UnoludoBoard.track_positions[position]);
+        guard += 1;
+    }
+
+    return path;
+};
+
+const build_backward_track_path = function (from_position, to_position) {
+    const path = [];
+    let position = from_position;
+    let guard = 0;
+
+    while (position !== to_position && guard < Unoludo.track_length) {
+        position = (
+            position - 1 + Unoludo.track_length
+        ) % Unoludo.track_length;
+        path.push(UnoludoBoard.track_positions[position]);
+        guard += 1;
+    }
+
+    return path;
+};
+
+const build_piece_step_path = function (
+    player,
+    before_plane,
+    after_plane,
+    plane_index
+) {
+    const path = [];
+    let forward_path;
+    let reverse_path;
+    let start_position;
+
+    if (
+        before_plane.status === "base" ||
+        after_plane.status === "base"
+    ) {
+        push_path_position(path, player, after_plane, plane_index);
+        return path;
+    }
+
+    if (before_plane.status === "gate" && after_plane.status === "track") {
+        start_position = Unoludo.start_positions[player.colour];
+        path.push(UnoludoBoard.track_positions[start_position]);
+
+        if (after_plane.position !== start_position) {
+            build_forward_track_path(
+                start_position,
+                after_plane.position
+            ).forEach(function (position) {
+                path.push(position);
+            });
+        }
+
+        return path;
+    }
+
+    if (
+        before_plane.status === "track" &&
+        after_plane.status === "track"
+    ) {
+        const jump = Unoludo.jump_positions[player.colour];
+        forward_path = build_forward_track_path(
+            before_plane.position,
+            after_plane.position
+        );
+        reverse_path = build_backward_track_path(
+            before_plane.position,
+            after_plane.position
+        );
+
+        if (
+            jump !== undefined &&
+            after_plane.position === jump.to
+        ) {
+            const jump_source_index = forward_path.findIndex(function (position) {
+                return position === UnoludoBoard.track_positions[jump.from];
+            });
+
+            if (jump_source_index !== -1) {
+                return forward_path.slice(0, jump_source_index + 1).concat([
+                    UnoludoBoard.track_positions[jump.to]
+                ]);
+            }
+        }
+
+        return (
+            reverse_path.length < forward_path.length
+            ? reverse_path
+            : forward_path
+        );
+    }
+
+    if (
+        before_plane.status === "track" &&
+        after_plane.status === "home"
+    ) {
+        build_forward_track_path(
+            before_plane.position,
+            Unoludo.home_entry_positions[player.colour]
+        ).forEach(function (position) {
+            path.push(position);
+        });
+
+        for (let index = 0; index <= after_plane.position; index += 1) {
+            path.push(UnoludoBoard.home_positions[player.colour][index]);
+        }
+
+        return path;
+    }
+
+    if (
+        before_plane.status === "home" &&
+        after_plane.status === "home"
+    ) {
+        if (after_plane.position > before_plane.position) {
+            for (
+                let index = before_plane.position + 1;
+                index <= after_plane.position;
+                index += 1
+            ) {
+                path.push(UnoludoBoard.home_positions[player.colour][index]);
+            }
+        } else {
+            for (
+                let index = before_plane.position - 1;
+                index >= after_plane.position;
+                index -= 1
+            ) {
+                path.push(UnoludoBoard.home_positions[player.colour][index]);
+            }
+        }
+
+        return path;
+    }
+
+    if (after_plane.status === "finished") {
+        push_path_position(path, player, after_plane, plane_index);
+        return path;
+    }
+
+    push_path_position(path, player, after_plane, plane_index);
+    return path;
+};
+
+const piece_step_duration_for_path = function (path) {
+    let elapsed = PIECE_STEP_START_DELAY;
+
+    path.forEach(function (position, index) {
+        elapsed += (
+            PIECE_STEP_INTERVAL +
+            PIECE_STEP_VARIATIONS[index % PIECE_STEP_VARIATIONS.length]
+        );
+    });
+
+    return elapsed + PIECE_STEP_FINISH_DELAY;
+};
+
 const prepare_render_effects = function (before_state, after_state, options) {
     const before_top = Unoludo.top_discard(before_state);
     const after_top = Unoludo.top_discard(after_state);
@@ -1942,6 +2177,8 @@ const prepare_render_effects = function (before_state, after_state, options) {
         captured_keys: Object.create(null),
         shielded: false,
         frozen: false,
+        capture_delay: 0,
+        piece_paths: Object.create(null),
         turn_changed: after_state.current_player !== before_state.current_player,
         winner_changed: after_state.winner !== before_state.winner
     };
@@ -1956,6 +2193,12 @@ const prepare_render_effects = function (before_state, after_state, options) {
                 before_plane.position !== plane.position
             ) {
                 effects.moved_pieces = true;
+                effects.piece_paths[piece_key] = build_piece_step_path(
+                    player,
+                    before_plane,
+                    plane,
+                    plane_index
+                );
             }
 
             if (
@@ -1973,6 +2216,17 @@ const prepare_render_effects = function (before_state, after_state, options) {
                 effects.frozen = true;
             }
         });
+    });
+
+    Object.keys(effects.piece_paths).forEach(function (piece_key) {
+        if (effects.captured_keys[piece_key] === true) {
+            return;
+        }
+
+        effects.capture_delay = Math.max(
+            effects.capture_delay,
+            piece_step_duration_for_path(effects.piece_paths[piece_key])
+        );
     });
 
     pending_render_effects = effects;
@@ -2018,8 +2272,13 @@ const sync_multiplayer_state = function () {
 };
 
 const can_take_local_turn = function () {
+    if (active_piece_animations !== 0) {
+        return false;
+    }
+
     return (
-        gameMode !== "multi" ||
+        (gameMode !== "multi" &&
+            Unoludo.current_player(state).kind !== "cpu") ||
         (mpStateSynced === true &&
             window.UnoludoMultiplayer.isMyTurn(state.current_player) === true)
     );
@@ -2462,7 +2721,7 @@ const play_pending_sounds = function (effects) {
     }
 
     if (Object.keys(effects.captured_keys).length > 0) {
-        playCaptureSound();
+        window.setTimeout(playCaptureSound, effects.capture_delay);
     }
 
     if (effects.shielded) {
@@ -2480,6 +2739,110 @@ const play_pending_sounds = function (effects) {
     }
 };
 
+const render_piece_badge = function (piece, badge_class, should_show, label) {
+    let badge = piece.querySelector("." + badge_class);
+
+    if (should_show) {
+        if (badge === null) {
+            badge = document.createElement("span");
+            badge.className = "piece-badge " + badge_class;
+            badge.setAttribute("aria-hidden", "true");
+            piece.appendChild(badge);
+        }
+
+        badge.textContent = label;
+        return;
+    }
+
+    if (badge !== null) {
+        badge.remove();
+    }
+};
+
+const animate_piece_along_path = function (
+    piece,
+    piece_key,
+    from_position,
+    path,
+    offset,
+    options
+) {
+    const token = (piece_animation_tokens[piece_key] || 0) + 1;
+    const delay = (
+        options && options.delay !== undefined
+        ? options.delay
+        : 0
+    );
+    const wobble = (
+        piece_key.length % 2 === 0
+        ? "-2.4deg"
+        : "2.4deg"
+    );
+    const positions = path.map(function (position) {
+        return {
+            left: position.x + offset.x,
+            top: position.y + offset.y
+        };
+    });
+
+    if (positions.length === 0) {
+        return false;
+    }
+
+    piece_animation_tokens[piece_key] = token;
+    active_piece_animations += 1;
+
+    piece.style.transition = "none";
+    piece.style.left = from_position.left + "%";
+    piece.style.top = from_position.top + "%";
+
+    window.setTimeout(function () {
+        let elapsed = PIECE_STEP_START_DELAY;
+
+        if (piece_animation_tokens[piece_key] !== token) {
+            return;
+        }
+
+        piece.offsetHeight;
+        piece.style.setProperty("--piece-step-wobble", wobble);
+        piece.classList.add("piece-step-animating");
+        piece.style.transition = "";
+
+        positions.forEach(function (position, index) {
+            window.setTimeout(function () {
+                if (piece_animation_tokens[piece_key] !== token) {
+                    return;
+                }
+
+                piece.style.left = position.left + "%";
+                piece.style.top = position.top + "%";
+            }, elapsed);
+
+            elapsed += (
+                PIECE_STEP_INTERVAL +
+                PIECE_STEP_VARIATIONS[index % PIECE_STEP_VARIATIONS.length]
+            );
+        });
+    }, delay);
+
+    window.setTimeout(function () {
+        if (piece_animation_tokens[piece_key] === token) {
+            piece.classList.remove("piece-step-animating");
+            piece.style.transition = "";
+            piece.style.removeProperty("--piece-step-wobble");
+        }
+
+        active_piece_animations = Math.max(0, active_piece_animations - 1);
+
+        if (active_piece_animations === 0) {
+            apply_multiplayer_turn_controls();
+            schedule_cpu_if_needed();
+        }
+    }, delay + piece_step_duration_for_path(path));
+
+    return true;
+};
+
 const render_piece = function (
     player,
     plane,
@@ -2495,11 +2858,23 @@ const render_piece = function (
 
     const piece_key = piece_key_for(player, plane_index);
     const offset = overlap_offset(overlap_index, overlap_count);
+    const previous_snapshot = previous_piece_snapshots[piece_key];
+    const path = (
+        pending_render_effects === undefined
+        ? undefined
+        : pending_render_effects.piece_paths[piece_key]
+    );
+    const is_captured = (
+        pending_render_effects !== undefined &&
+        pending_render_effects.captured_keys[piece_key] === true
+    );
 
     let piece = piece_elements[piece_key];
     let image;
     let image_src;
     let image_alt;
+    let target_left;
+    let target_top;
 
     if (plane.status === "finished") {
         position = UnoludoBoard.base_positions[player.colour][plane_index];
@@ -2513,6 +2888,9 @@ const render_piece = function (
     if (position === undefined) {
         return;
     }
+
+    target_left = position.x + offset.x;
+    target_top = position.y + offset.y;
 
     if (piece === undefined) {
         piece = document.createElement("div");
@@ -2593,44 +2971,85 @@ const render_piece = function (
         piece.className += " frozen";
     }
 
-    piece.style.left = (position.x + offset.x) + "%";
-    piece.style.top = (position.y + offset.y) + "%";
-
     image.src = image_src;
     image.alt = image_alt;
 
+    render_piece_badge(
+        piece,
+        "shield-badge",
+        plane.status !== "finished" && plane.shielded,
+        "🛡️"
+    );
+    render_piece_badge(
+        piece,
+        "skip-badge",
+        plane.status !== "finished" && plane.frozen,
+        "🚫"
+    );
+
     if (
-        pending_render_effects !== undefined &&
-        pending_render_effects.captured_keys[piece_key] === true
+        previous_snapshot !== undefined &&
+        path !== undefined &&
+        (plane.status !== "base" || is_captured) &&
+        animate_piece_along_path(
+            piece,
+            piece_key,
+            previous_snapshot,
+            path,
+            offset,
+            {
+                delay: (
+                    is_captured && pending_render_effects !== undefined
+                    ? pending_render_effects.capture_delay
+                    : 0
+                )
+            }
+        )
     ) {
-        piece.classList.add("captured");
+        // The step animation owns left/top until it completes.
+    } else {
+        piece.style.left = target_left + "%";
+        piece.style.top = target_top + "%";
+    }
+
+    if (is_captured) {
+        const capture_delay = (
+            pending_render_effects !== undefined
+            ? pending_render_effects.capture_delay
+            : 0
+        );
+
+        window.setTimeout(function () {
+            piece.classList.add("captured");
+        }, capture_delay);
 
         window.setTimeout(function () {
             piece.classList.remove("captured");
-        }, 520);
+        }, capture_delay + 520);
     }
 
     if (
         previous_piece_snapshots[piece_key] !== undefined &&
         previous_piece_snapshots[piece_key].status !== "base" &&
         previous_piece_snapshots[piece_key].status !== "finished" &&
+        path === undefined &&
         (
-            Math.abs(previous_piece_snapshots[piece_key].left - (position.x + offset.x)) > 0.01 ||
-            Math.abs(previous_piece_snapshots[piece_key].top - (position.y + offset.y)) > 0.01
+            Math.abs(previous_piece_snapshots[piece_key].left - target_left) > 0.01 ||
+            Math.abs(previous_piece_snapshots[piece_key].top - target_top) > 0.01
         )
     ) {
         spawn_piece_trail(
             previous_piece_snapshots[piece_key],
-            position.x + offset.x,
-            position.y + offset.y,
+            target_left,
+            target_top,
             image_src,
             image_alt
         );
     }
 
     previous_piece_snapshots[piece_key] = {
-        left: position.x + offset.x,
-        top: position.y + offset.y,
+        left: target_left,
+        top: target_top,
         status: plane.status
     };
 };
@@ -3060,7 +3479,7 @@ const apply_multiplayer_turn_controls = function () {
 
     if (gameMode !== "multi") {
         if (draw_end_turn_button !== null) {
-            draw_end_turn_button.disabled = false;
+            draw_end_turn_button.disabled = !can_play;
         }
         return;
     }
