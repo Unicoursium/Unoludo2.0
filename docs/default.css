@@ -346,15 +346,13 @@ textarea {
     display: none;
 }
 
-.player-colour-card {
+.player-status-panel {
     width: 100%;
-    min-height: 58px;
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
-    align-items: center;
-    gap: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     margin-top: var(--space-4);
-    padding: var(--space-4) var(--space-5);
+    padding: var(--space-3);
     border: 1px solid var(--color-border-glow);
     border-radius: var(--radius-xl);
     background:
@@ -363,24 +361,55 @@ textarea {
     box-shadow: var(--shadow-panel-glow);
 }
 
-.player-colour-swatch {
-    width: 34px;
-    height: 34px;
+.player-status-row {
+    min-height: 42px;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 36px;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid rgba(var(--rgb-white), 0.09);
+    border-radius: var(--radius-md);
+    background: rgba(var(--rgb-white), 0.055);
+}
+
+.player-status-row.is-thinking {
+    border-color: rgba(var(--rgb-white), 0.28);
+    background:
+        linear-gradient(90deg, rgba(var(--rgb-white), 0.13), rgba(var(--rgb-white), 0.05));
+}
+
+.player-status-swatch {
+    width: 28px;
+    height: 28px;
     border: 2px solid rgba(var(--rgb-white), 0.76);
     border-radius: var(--radius-sm);
     background: var(--color-blue);
     box-shadow: 0 0 22px rgba(var(--rgb-blue), 0.42);
 }
 
-.player-colour-name {
+.player-status-name {
     min-width: 0;
     color: var(--color-text);
-    font-size: 18px;
+    font-size: 15px;
     line-height: 1.1;
     font-weight: 800;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.player-status-emoji {
+    width: 36px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(var(--rgb-white), 0.14);
+    border-radius: var(--radius-sm);
+    background: rgba(var(--rgb-board-glass), 0.5);
+    font-size: 17px;
+    line-height: 1;
 }
 
 .played-card-panel {

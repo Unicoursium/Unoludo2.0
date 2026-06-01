@@ -48,6 +48,7 @@ const initGameState = function (playerNames, options) {
             current_player: state.current_player,
             active_colour: state.active_colour,
             winner: state.winner,
+            player_moods: state.player_moods,
             log: state.log
         });
     }
@@ -380,9 +381,7 @@ const hide_winner_popup = function () {
 };
 const played_card_title = document.getElementById("played-card-title");
 const played_card_image = document.getElementById("played-card-image");
-const player_colour_card = document.getElementById("player-colour-card");
-const player_colour_swatch = document.getElementById("player-colour-swatch");
-const player_colour_name = document.getElementById("player-colour-name");
+const player_status_panel = document.getElementById("player-status-panel");
 const open_log_button = document.getElementById("open-log");
 const log_overlay = document.getElementById("log-overlay");
 const close_log_button = document.getElementById("close-log");
@@ -768,6 +767,20 @@ const track_distance = function (from_position, to_position) {
     );
 };
 
+const projected_track_position = function (player, from_position, steps) {
+    const raw_position = (
+        (from_position + steps + Unoludo.track_length) %
+        Unoludo.track_length
+    );
+    const jump = Unoludo.jump_positions[player.colour];
+
+    if (jump !== undefined && raw_position === jump.from) {
+        return jump.to;
+    }
+
+    return raw_position;
+};
+
 const plane_progress = function (player, plane) {
     const start_position = Unoludo.start_positions[player.colour];
     const entry_position = Unoludo.home_entry_positions[player.colour];
@@ -829,6 +842,7 @@ const count_active_planes = function (player) {
 };
 
 const can_capture_plane_with_steps = function (
+    attacker,
     attacker_plane,
     target_plane,
     steps
@@ -842,7 +856,11 @@ const can_capture_plane_with_steps = function (
         return false;
     }
 
-    return track_distance(attacker_plane.position, target_plane.position) === steps;
+    return projected_track_position(
+        attacker,
+        attacker_plane.position,
+        steps
+    ) === target_plane.position;
 };
 
 const player_can_capture_plane = function (
@@ -866,6 +884,7 @@ const player_can_capture_plane = function (
 
         return attacker.planes.some(function (attacker_plane) {
             return can_capture_plane_with_steps(
+                attacker,
                 attacker_plane,
                 target_plane,
                 steps
@@ -1736,6 +1755,7 @@ const cpu_take_turn = function () {
             current_player: next_state.current_player,
             active_colour: next_state.active_colour,
             winner: next_state.winner,
+            player_moods: next_state.player_moods,
             log: Object.freeze(next_state.log.concat([
                 player.name + " received a P6 reward card (6th draw streak)!"
             ]))
@@ -2881,6 +2901,7 @@ const render_hand = function () {
                         current_player: next_state.current_player,
                         active_colour: next_state.active_colour,
                         winner: next_state.winner,
+                        player_moods: next_state.player_moods,
                         log: Object.freeze(next_state.log.concat([
                             player.name + " received a P6 reward card (6th draw streak)!"
                         ]))
@@ -2900,6 +2921,79 @@ const render_hand = function () {
     }
 };
 
+const render_player_status_panel = function () {
+    if (player_status_panel === null) {
+        return;
+    }
+
+    player_status_panel.replaceChildren();
+
+    state.players.forEach(function (player) {
+        const row = document.createElement("div");
+        const swatch = document.createElement("span");
+        const name = document.createElement("span");
+        const emoji = document.createElement("span");
+        const is_current = player.id === state.current_player;
+        const mood = (
+            state.player_moods === undefined
+            ? undefined
+            : state.player_moods[player.id]
+        );
+        const emoji_text = (
+            is_current
+            ? "🤔"
+            : (
+                mood === "smug"
+                ? "🤭"
+                : (
+                    mood === "angry"
+                    ? "😡"
+                    : "⏳"
+                )
+            )
+        );
+
+        row.className = (
+            is_current
+            ? "player-status-row is-thinking"
+            : "player-status-row"
+        );
+
+        swatch.className = "player-status-swatch";
+        swatch.style.background = player_colour_hex(player.colour);
+        swatch.style.boxShadow = (
+            "0 0 18px " + player_colour_hex(player.colour)
+        );
+
+        name.className = "player-status-name";
+        name.textContent = player.name;
+
+        emoji.className = "player-status-emoji";
+        emoji.textContent = emoji_text;
+        emoji.setAttribute(
+            "aria-label",
+            (
+                is_current
+                ? "Thinking"
+                : (
+                    mood === "smug"
+                    ? "Disrupted another player"
+                    : (
+                        mood === "angry"
+                        ? "Disrupted by another player"
+                        : "Waiting"
+                    )
+                )
+            )
+        );
+
+        row.appendChild(swatch);
+        row.appendChild(name);
+        row.appendChild(emoji);
+        player_status_panel.appendChild(row);
+    });
+};
+
 const render_info = function () {
     const current_player = Unoludo.current_player(state);
     const previous_player_id = (
@@ -2908,29 +3002,8 @@ const render_info = function () {
     const previous_player = state.players[previous_player_id];
     const top_card = Unoludo.top_discard(state);
     let winner;
-    const local_player = (
-        gameMode === "multi"
-        ? state.players[myPlayerIndex]
-        : state.players[0]
-    );
 
-    if (
-        local_player !== undefined &&
-        player_colour_card !== null &&
-        player_colour_swatch !== null &&
-        player_colour_name !== null
-    ) {
-        player_colour_name.textContent = local_player.name;
-        player_colour_swatch.style.background = player_colour_hex(
-            local_player.colour
-        );
-        player_colour_swatch.style.boxShadow = (
-            "0 0 22px " + player_colour_hex(local_player.colour)
-        );
-        player_colour_card.style.borderColor = player_colour_hex(
-            local_player.colour
-        );
-    }
+    render_player_status_panel();
 
     if (state.winner !== undefined) {
         winner = state.players[state.winner];
@@ -3147,6 +3220,7 @@ document.getElementById("draw-end-turn").addEventListener("click", function () {
                 current_player: next_state.current_player,
                 active_colour: next_state.active_colour,
                 winner: next_state.winner,
+                player_moods: next_state.player_moods,
                 log: Object.freeze(next_state.log.concat([
                     player.name + " received a P6 reward card (6th draw streak)!"
                 ]))

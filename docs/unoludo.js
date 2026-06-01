@@ -501,6 +501,7 @@ Unoludo.create_initial_state = function (player_names, options = {}) {
         current_player: 0,
         active_colour: discard_setup.active_colour,
         winner: undefined,
+        player_moods: Object.freeze({}),
         log: Object.freeze(["Game started."])
     });
 };
@@ -527,6 +528,29 @@ Unoludo.top_discard = function (state) {
  */
 Unoludo.current_player = function (state) {
     return state.players[state.current_player];
+};
+
+const player_moods_for_state = function (state) {
+    return state.player_moods || Object.freeze({});
+};
+
+const clear_player_mood = function (moods, player_id) {
+    const key = String(player_id);
+    const next_moods = {...moods};
+
+    delete next_moods[key];
+    return Object.freeze(next_moods);
+};
+
+const mark_disruption = function (state, disruptor_id, target_id) {
+    return Object.freeze({
+        ...state,
+        player_moods: Object.freeze({
+            ...player_moods_for_state(state),
+            [disruptor_id]: "smug",
+            [target_id]: "angry"
+        })
+    });
 };
 
 /**
@@ -731,6 +755,13 @@ Unoludo.home_entry_positions = Object.freeze({
     yellow: 36
 });
 
+Unoludo.jump_positions = Object.freeze({
+    blue: Object.freeze({from: 17, to: 29}),
+    green: Object.freeze({from: 30, to: 42}),
+    red: Object.freeze({from: 43, to: 3}),
+    yellow: Object.freeze({from: 4, to: 16})
+});
+
 
 /**
  * Replace one player in the player list.
@@ -804,6 +835,7 @@ Unoludo.update_player = function (state, player_id, new_player) {
         current_player: state.current_player,
         active_colour: state.active_colour,
         winner: new_winner,
+        player_moods: player_moods_for_state(state),
         log: (
             state.winner === undefined &&
             new_winner !== undefined
@@ -904,6 +936,7 @@ Unoludo.draw_cards = function (state, player_id, count) {
         current_player: state.current_player,
         active_colour: state.active_colour,
         winner: state.winner,
+        player_moods: player_moods_for_state(state),
         log: Object.freeze(
             state.log.concat([
                 player.name + " drew " + drawn_cards.length + " card(s)."
@@ -945,6 +978,7 @@ const grant_empty_hand_bonus = function (state, player_id) {
         current_player: state_after_draw.current_player,
         active_colour: state_after_draw.active_colour,
         winner: state_after_draw.winner,
+        player_moods: player_moods_for_state(state_after_draw),
         log: Object.freeze(state_after_draw.log.concat([
             player.name + " emptied their hand and received a reward card."
         ]))
@@ -1040,6 +1074,10 @@ Unoludo.end_turn = function (state) {
         current_player: next_player_id,
         active_colour: state.active_colour,
         winner: state.winner,
+        player_moods: clear_player_mood(
+            player_moods_for_state(state),
+            next_player_id
+        ),
         log: Object.freeze(
             state.log.concat([
                 "Turn ended. It is now "
@@ -1133,6 +1171,7 @@ const commit_played_card = function (
             ? player_without_card.id
             : state.winner
         ),
+        player_moods: player_moods_for_state(state),
         log: Object.freeze(state.log.concat([message]))
     });
 
@@ -1229,6 +1268,7 @@ Unoludo.play_reward_card = function (
         current_player: state.current_player,
         active_colour: chosen_colour,
         winner: state.winner,
+        player_moods: player_moods_for_state(state),
         log: Object.freeze(state.log.concat([
             player.name + " played reward "
             + card.value + ", chose " + chosen_colour
@@ -1274,6 +1314,16 @@ Unoludo.play_reward_card = function (
  */
 const wrapped_track_position = function (position) {
     return ((position % Unoludo.track_length) + Unoludo.track_length) % Unoludo.track_length;
+};
+
+const apply_track_jump = function (position, colour) {
+    const jump = Unoludo.jump_positions[colour];
+
+    if (jump !== undefined && position === jump.from) {
+        return jump.to;
+    }
+
+    return position;
 };
 
 const has_passed_home_entry = function (start_position, steps, entry_position) {
@@ -1357,7 +1407,10 @@ const move_active_plane = function (plane, steps, colour) {
             return undefined;
         }
 
-        next_position = wrapped_track_position(plane.position + steps);
+        next_position = apply_track_jump(
+            wrapped_track_position(plane.position + steps),
+            colour
+        );
 
         return Object.freeze({
             status: "track",
@@ -1487,6 +1540,12 @@ Unoludo.resolve_captures = function (
                 + mover_plane_index + " captured "
                 + target_player.name + "'s plane "
                 + target_plane_index + "."
+            );
+
+            resolved_state = mark_disruption(
+                resolved_state,
+                mover.id,
+                target_player.id
             );
         });
     });
@@ -1820,10 +1879,14 @@ Unoludo.play_skip_card = function (
         return undefined;
     }
 
-    return Unoludo.update_player(
-        state_after_card,
-        target_player_id,
-        frozen_target_player
+    return mark_disruption(
+        Unoludo.update_player(
+            state_after_card,
+            target_player_id,
+            frozen_target_player
+        ),
+        player.id,
+        target_player_id
     );
 };
 
@@ -2044,6 +2107,7 @@ Unoludo.play_reverse_combo = function (
         current_player: state.current_player,
         active_colour: number_card.colour,
         winner: state.winner,
+        player_moods: player_moods_for_state(state),
         log: Object.freeze(state.log.concat([
             player.name + " played "
             + reverse_card.colour + " Reverse with "
@@ -2059,6 +2123,12 @@ Unoludo.play_reverse_combo = function (
         target_player_id,
         target_plane_index,
         moved_plane
+    );
+
+    state_after_cards = mark_disruption(
+        state_after_cards,
+        player.id,
+        target_player_id
     );
 
     return grant_empty_hand_bonus(
@@ -2191,6 +2261,7 @@ Unoludo.play_wild_combo = function (
         current_player: state.current_player,
         active_colour: number_card.colour,
         winner: state.winner,
+        player_moods: player_moods_for_state(state),
         log: Object.freeze(state.log.concat([
             player.name + " played Wild with "
             + number_card.colour + " " + number_card.value
@@ -2308,6 +2379,7 @@ Unoludo.play_wild4_card = function (state, card_id, option, chosen_colour) {
         current_player: state.current_player,
         active_colour: chosen_colour,
         winner: state.winner,
+        player_moods: player_moods_for_state(state),
         log: Object.freeze(state.log.concat([
             player.name + " played Wild +4 and chose " + chosen_colour + "."
         ]))
