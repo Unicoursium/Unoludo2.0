@@ -380,6 +380,9 @@ const hide_winner_popup = function () {
 };
 const played_card_title = document.getElementById("played-card-title");
 const played_card_image = document.getElementById("played-card-image");
+const player_colour_card = document.getElementById("player-colour-card");
+const player_colour_swatch = document.getElementById("player-colour-swatch");
+const player_colour_name = document.getElementById("player-colour-name");
 const open_log_button = document.getElementById("open-log");
 const log_overlay = document.getElementById("log-overlay");
 const close_log_button = document.getElementById("close-log");
@@ -2862,6 +2865,29 @@ const render_info = function () {
     const previous_player = state.players[previous_player_id];
     const top_card = Unoludo.top_discard(state);
     let winner;
+    const local_player = (
+        gameMode === "multi"
+        ? state.players[myPlayerIndex]
+        : state.players[0]
+    );
+
+    if (
+        local_player !== undefined &&
+        player_colour_card !== null &&
+        player_colour_swatch !== null &&
+        player_colour_name !== null
+    ) {
+        player_colour_name.textContent = local_player.name;
+        player_colour_swatch.style.background = player_colour_hex(
+            local_player.colour
+        );
+        player_colour_swatch.style.boxShadow = (
+            "0 0 22px " + player_colour_hex(local_player.colour)
+        );
+        player_colour_card.style.borderColor = player_colour_hex(
+            local_player.colour
+        );
+    }
 
     if (state.winner !== undefined) {
         winner = state.players[state.winner];
@@ -2869,15 +2895,15 @@ const render_info = function () {
     }
 
     if (state.log.length === 1) {
-        played_card_title.textContent = "The First Card:";
+        played_card_title.textContent = "First card:";
     } else {
         // "drew" log is second-to-last because end_turn always appends after it
         var last_log = state.log[state.log.length - 2] || "";
         var last_action_is_draw = last_log.indexOf(" drew ") !== -1;
         if (last_action_is_draw) {
-            played_card_title.textContent = previous_player.name + " Drew:";
+            played_card_title.textContent = previous_player.name + " drew:";
         } else {
-            played_card_title.textContent = previous_player.name + " Played:";
+            played_card_title.textContent = previous_player.name + " played:";
         }
     }
 
@@ -2891,7 +2917,7 @@ const render_info = function () {
     }
 
     if (turn_indicator_label !== null) {
-        turn_indicator_label.textContent = current_player.name + "'s Turn";
+        turn_indicator_label.textContent = current_player.name + "'s turn";
     }
 
 
@@ -3143,7 +3169,7 @@ window.UnoludoApp = {
         render();
     },
 
-    startMultiPlayer: function (roomId, playerIndex, playerKinds) {
+    startMultiPlayer: function (roomId, playerIndex, playerKinds, playerNames) {
         gameMode = "multi";
         myPlayerIndex = playerIndex;
         multiplayerCpuAuthorityIndex = (
@@ -3158,9 +3184,10 @@ window.UnoludoApp = {
         // Use the definitive playerKinds from the lobby (all clients get the same array)
         // Empty slots default to "cpu" so the game cycles through all 4 players
         var kinds = playerKinds || ["human", "human", "human", "human"];
+        var names = playerNames || multiplayer_player_names;
         console.log("[MultiPlayer] playerKinds:", kinds, "myIndex:", playerIndex);
 
-        initGameState(multiplayer_player_names, {
+        initGameState(names, {
             shuffle: true,
             playerKinds: kinds
         });
@@ -3183,9 +3210,19 @@ window.UnoludoApp = {
 };
 
 if (window.UnoludoLobby !== undefined) {
-    window.UnoludoLobby.onGameStart(function (roomId, playerIndex, playerKinds) {
+    window.UnoludoLobby.onGameStart(function (
+        roomId,
+        playerIndex,
+        playerKinds,
+        playerNames
+    ) {
         window.UnoludoLobby.showScreen(window.UnoludoLobby.getGameScreen());
-        window.UnoludoApp.startMultiPlayer(roomId, playerIndex, playerKinds);
+        window.UnoludoApp.startMultiPlayer(
+            roomId,
+            playerIndex,
+            playerKinds,
+            playerNames
+        );
     });
 }
 

@@ -329,7 +329,6 @@ textarea {
 }
 
 #current-player,
-#action-message,
 #top-discard,
 #draw-count {
     font-size: 14px;
@@ -343,28 +342,50 @@ textarea {
     font-weight: 500;
 }
 
-#action-message {
+.hidden-status {
+    display: none;
+}
+
+.player-colour-card {
     width: 100%;
-    min-height: 38px;
-    margin-top: var(--space-8);
-    padding: var(--space-7);
-    background: var(--gradient-message);
+    min-height: 58px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+    padding: var(--space-4) var(--space-5);
     border: 1px solid var(--color-border-glow);
-    border-left: 7px solid var(--color-blue);
     border-radius: var(--radius-xl);
-    color: var(--color-text-soft);
-    font-size: 14px;
-    line-height: 1.35;
-    font-weight: 700;
-    box-shadow:
-        0 0 0 1px rgba(var(--rgb-white), 0.08),
-        0 12px 28px var(--color-shadow-black-35);
-    animation: actionMessageEnter 360ms ease-out both, actionMessagePulse 1.25s ease-out 360ms 1;
+    background:
+        linear-gradient(145deg, rgba(var(--rgb-white), 0.11), var(--color-transparent) 54%),
+        var(--color-panel-soft);
+    box-shadow: var(--shadow-panel-glow);
+}
+
+.player-colour-swatch {
+    width: 34px;
+    height: 34px;
+    border: 2px solid rgba(var(--rgb-white), 0.76);
+    border-radius: var(--radius-sm);
+    background: var(--color-blue);
+    box-shadow: 0 0 22px rgba(var(--rgb-blue), 0.42);
+}
+
+.player-colour-name {
+    min-width: 0;
+    color: var(--color-text);
+    font-size: 18px;
+    line-height: 1.1;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .played-card-panel {
     width: 100%;
-    margin-top: var(--space-8);
+    margin-top: var(--space-6);
     display: flex;
     flex-direction: column;
     align-items: flex-start;

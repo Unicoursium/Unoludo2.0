@@ -90,16 +90,20 @@
                     </h1>
                     <span class="version-badge">v2.0</span>
                 </div>
+                <div id="player-colour-card" class="player-colour-card">
+                    <span id="player-colour-swatch" class="player-colour-swatch"></span>
+                    <span id="player-colour-name" class="player-colour-name">Player</span>
+                </div>
                 <div class="played-card-panel">
                     <h2 id="played-card-title">Player Played:</h2>
                     <img id="played-card-image" class="played-card-image" src="./assets/img/B6.png" alt="Last played card">
                 </div>
-                <p id="action-message">Select a card, then select one of your planes.</p>
+                <p id="action-message" class="hidden-status" aria-live="polite">Select a card, then select one of your planes.</p>
             </aside>
 
             <section class="board-panel">
                 <div class="turn-indicator" aria-label="Turn indicator">
-                    <span class="turn-indicator-label">Player's Turn</span>
+                    <span class="turn-indicator-label">Player's turn</span>
                 </div>
                 <div class="board-wrapper" id="board-wrapper">
                     <div id="particle-canvas" aria-hidden="true"></div>

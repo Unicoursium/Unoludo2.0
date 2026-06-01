@@ -417,8 +417,15 @@
                     // Build the definitive playerKinds array from room data
                     // Every client must use the SAME array for consistency
                     var playerKinds = ["cpu", "cpu", "cpu", "cpu"];
+                    var playerNames = [
+                        "Player 1",
+                        "Player 2",
+                        "Player 3",
+                        "Player 4"
+                    ];
                     Object.keys(currentPlayers).forEach(function (key) {
                         var idx = parseInt(key);
+                        playerNames[idx] = currentPlayers[key].name || playerNames[idx];
                         if (currentPlayers[key].isCPU) {
                             playerKinds[idx] = "cpu";
                         } else {
@@ -426,7 +433,12 @@
                         }
                     });
                     console.log("[Lobby] Calling gameStartCallback with code=" + code + " index=" + currentPlayerIndex + " playerKinds=" + JSON.stringify(playerKinds));
-                    gameStartCallback(code, currentPlayerIndex, playerKinds);
+                    gameStartCallback(
+                        code,
+                        currentPlayerIndex,
+                        playerKinds,
+                        playerNames
+                    );
                 } else {
                     console.log("[Lobby] WARNING: gameStartCallback is not set!");
                 }
