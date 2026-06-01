@@ -603,7 +603,7 @@ Unoludo.can_play_on = function (card, top_card, active_colour) {
 
     if (
         card.type === "number" &&
-        top_card.type === "number" &&
+        (top_card.type === "number" || top_card.type === "reward") &&
         card.value === top_card.value
     ) {
         return true;

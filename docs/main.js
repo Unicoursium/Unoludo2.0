@@ -397,7 +397,7 @@ const card_match_label = function (card) {
     }
 
     if (card.type === "reward") {
-        return "P" + card.value;
+        return String(card.value);
     }
 
     return card.type;

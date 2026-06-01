@@ -384,4 +384,21 @@ assert.equal(
     true
 );
 
+assert.equal(
+    Unoludo.can_play_on(
+        Unoludo.card("blue-6-on-reward", "number", "blue", 6),
+        Unoludo.card("reward-top-6", "reward", "wild", 6),
+        "red"
+    ),
+    true
+);
+assert.equal(
+    Unoludo.can_play_on(
+        Unoludo.card("blue-5-on-reward", "number", "blue", 5),
+        Unoludo.card("reward-top-6", "reward", "wild", 6),
+        "red"
+    ),
+    false
+);
+
 console.log("Board V3 movement smoke tests passed.");
