@@ -156,11 +156,14 @@
 html {
     scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
     scrollbar-width: thin;
+    overflow-x: hidden;
 }
 
 body {
     min-height: 100vh;
+    min-height: 100dvh;
     margin: var(--space-0);
+    overflow-x: hidden;
     background: var(--gradient-body);
     background-size: 140% 140%;
     color: var(--color-text);
@@ -1511,21 +1514,41 @@ button:active {
 }
 
 @media (max-width: 1000px) {
+    #game-screen {
+        align-items: flex-start;
+        justify-content: flex-start;
+        height: 100dvh;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
     .game-layout {
+        width: 100%;
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr auto auto;
         grid-template-areas:
             "left"
             "board"
-            "right"
-            "hand";
+            "hand"
+            "right";
         height: auto;
-        min-height: 100vh;
-        overflow: visible;
+        min-height: 100dvh;
+        gap: var(--space-3);
+        padding: var(--space-3);
+        overflow-x: hidden;
+        overflow-y: visible;
+    }
+
+    .left-panel,
+    .right-panel,
+    .hand-panel,
+    .board-panel {
+        min-width: 0;
     }
 
     .board-wrapper {
-        width: min(94vw, 70vh);
+        width: min(100%, calc(100vw - 24px), 62dvh);
+        max-width: 100%;
     }
 
     .hand-panel {
@@ -1542,16 +1565,167 @@ button:active {
 }
 
 @media (max-width: 800px) {
+    .game-layout {
+        grid-template-rows: auto auto auto auto;
+        padding:
+            max(var(--space-3), env(safe-area-inset-top))
+            var(--space-3)
+            max(var(--space-3), env(safe-area-inset-bottom))
+            var(--space-3);
+    }
+
+    .left-panel {
+        padding: var(--space-2);
+        overflow: visible;
+    }
+
+    .game-title-wrap {
+        display: none;
+    }
+
+    .player-status-panel {
+        margin-top: var(--space-0);
+        padding: var(--space-2);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--space-1);
+        overflow: hidden;
+        box-shadow: none;
+    }
+
+    .player-status-row {
+        min-height: 32px;
+        grid-template-columns: 16px minmax(0, 1fr) 24px 24px;
+        gap: var(--space-1);
+        padding: var(--space-1);
+    }
+
+    .player-status-swatch {
+        width: 16px;
+        height: 16px;
+        border-width: 1px;
+    }
+
+    .player-status-name {
+        font-size: 11px;
+    }
+
+    .player-status-hand-count {
+        min-width: 24px;
+        height: 22px;
+        padding: var(--space-0) var(--space-1);
+        font-size: 11px;
+    }
+
+    .player-status-emoji {
+        width: 24px;
+        height: 22px;
+        font-size: 13px;
+    }
+
+    .played-card-panel {
+        display: none;
+    }
+
+    .board-panel {
+        justify-content: flex-start;
+        overflow: hidden;
+    }
+
+    .turn-indicator {
+        max-width: 100%;
+        margin-bottom: var(--space-2);
+        padding: var(--space-2);
+        border-radius: var(--radius-md);
+    }
+
+    .turn-indicator-label {
+        font-size: 11px;
+    }
+
+    .board-wrapper {
+        width: min(100%, calc(100vw - 24px), 58dvh);
+    }
+
+    .hand-panel {
+        min-height: 158px;
+        padding: var(--space-3) var(--space-0) var(--space-2) var(--space-0);
+        overflow: hidden;
+    }
+
     .hand-panel-header {
         grid-template-columns: minmax(140px, 1fr) auto;
+        padding: var(--space-0) var(--space-3);
+        gap: var(--space-2);
     }
 
     .hand-panel h2 {
         justify-self: end;
+        font-size: 18px;
     }
 
     .hand-panel-header-spacer {
         display: none;
+    }
+
+    .hand-play-hint {
+        min-width: 0;
+        max-width: 210px;
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-sm);
+    }
+
+    .hand-play-hint-label {
+        font-size: 9px;
+    }
+
+    .hand-play-hint-line {
+        font-size: 13px;
+    }
+
+    .hand-play-colour-swatch {
+        width: 14px;
+        height: 14px;
+    }
+
+    .hand-play-type {
+        font-size: 12px;
+    }
+
+    #hand-cards,
+    .hand-cards {
+        justify-content: flex-start;
+        min-height: 118px;
+        padding: var(--space-4) var(--space-4) var(--space-2) var(--space-4);
+        overflow-x: auto;
+        overflow-y: visible;
+        scroll-padding-inline: var(--space-4);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .right-panel {
+        padding: var(--space-2);
+        overflow: visible;
+    }
+
+    .right-button-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-2);
+    }
+
+    .right-button-group button {
+        min-height: 42px;
+        padding: var(--space-2);
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        line-height: 1.12;
+    }
+
+    #draw-end-turn {
+        grid-column: span 2;
+        min-height: 48px;
+        font-size: 16px;
     }
 
     .help-nav {
@@ -1580,8 +1754,22 @@ button:active {
     }
 
     .card-image {
-        width: 96px;
-        margin-left: -34px;
+        width: clamp(74px, 21vw, 92px);
+        margin-left: -24px;
+        flex: 0 0 auto;
+    }
+
+    .playable-card {
+        margin-left: -18px;
+    }
+
+    .playable-card + .playable-card {
+        margin-left: -8px;
+    }
+
+    .playable-card + .draw-card-button,
+    .draw-card-suggested {
+        margin-left: -18px;
     }
 }
 
