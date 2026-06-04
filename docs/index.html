@@ -66,7 +66,14 @@
             <div class="room-code-display">
                 <p class="room-code-label">Room Code</p>
                 <p id="room-code-value" class="room-code-value">----</p>
-                <button id="btn-copy-code" class="room-copy-btn">Copy</button>
+                <div class="room-code-buttons">
+                    <button id="btn-copy-code" class="room-copy-btn">Copy Code</button>
+                    <button id="btn-copy-link" class="room-copy-btn">Copy Link</button>
+                </div>
+            </div>
+            <div id="room-share-section" class="room-share-section" style="display:none;">
+                <p class="room-share-label">Scan to join</p>
+                <img id="room-qr-code" class="room-qr-code" src="" alt="QR Code">
             </div>
             <div class="room-players">
                 <h3>Players</h3>

@@ -322,6 +322,35 @@
     color: #fff;
 }
 
+.room-code-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 0.75rem;
+}
+
+.room-share-section {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.room-share-label {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+}
+
+.room-qr-code {
+    width: 150px;
+    height: 150px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    background: #fff;
+    padding: 4px;
+}
+
 .room-players {
     margin-bottom: 1.5rem;
 }

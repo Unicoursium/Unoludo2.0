@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0;url=index.html">
+    <title>Redirecting...</title>
+</head>
+<body>
+    <script>
+        // Capture the path (e.g. /4567) and redirect to index.html?room=4567
+        (function () {
+            var path = window.location.pathname.replace(/^\/+|\/+$/g, "");
+            if (/^\d{4}$/.test(path)) {
+                window.location.replace("index.html?room=" + path);
+            } else {
+                window.location.replace("index.html");
+            }
+        })();
+    </script>
+</body>
+</html>

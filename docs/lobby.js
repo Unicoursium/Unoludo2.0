@@ -31,6 +31,10 @@
     var btnAddCpu = document.getElementById("btn-add-cpu");
     var btnStartGame = document.getElementById("btn-start-game");
 
+    var btnCopyLink = document.getElementById("btn-copy-link");
+    var roomShareSection = document.getElementById("room-share-section");
+    var roomQrCode = document.getElementById("room-qr-code");
+
     // ---- State ----
     var currentRoomId = null;
     var currentPlayerIndex = null;
@@ -72,6 +76,49 @@
             currentPlayerIndex !== null &&
             currentPlayerIndex === currentHostIndex
         );
+    }
+
+    // ---- URL routing helpers ----
+    var BASE_URL = "https://unoludo.unicoy.uk";
+
+    function getRoomUrl(code) {
+        return BASE_URL + "/" + (code || currentRoomId);
+    }
+
+    function updateRoomUrl(code) {
+        if (window.history && window.history.pushState) {
+            window.history.pushState(null, "", "/" + (code || currentRoomId));
+        }
+    }
+
+    function clearRoomUrl() {
+        if (window.history && window.history.pushState) {
+            window.history.pushState(null, "", "/");
+        }
+    }
+
+    function showQrCode(code) {
+        var url = getRoomUrl(code);
+        roomQrCode.src =
+            "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" +
+            encodeURIComponent(url);
+        roomShareSection.style.display = "";
+    }
+
+    function hideQrCode() {
+        roomShareSection.style.display = "none";
+        roomQrCode.src = "";
+    }
+
+    function getRoomParam() {
+        var params = new URLSearchParams(window.location.search);
+        return params.get("room");
+    }
+
+    function clearRoomParam() {
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, "", "/");
+        }
     }
 
     // ---- Count human and CPU players ----
@@ -265,6 +312,8 @@
                     roomCodeValue.textContent = code;
                     showScreen(roomScreen);
                     roomStatus.textContent = "Waiting for players...";
+                    updateRoomUrl(code);
+                    showQrCode(code);
                     startRoomListener(code);
                 });
             });
@@ -370,6 +419,8 @@
                     roomCodeValue.textContent = code;
                     showScreen(roomScreen);
                     roomStatus.textContent = "Waiting for players...";
+                    updateRoomUrl(code);
+                    showQrCode(code);
                     startRoomListener(code);
                 });
             });
@@ -495,6 +546,8 @@
         currentPlayerIndex = null;
         currentHostIndex = 0;
         currentPlayers = {};
+        hideQrCode();
+        clearRoomUrl();
         showScreen(lobbyScreen);
     }
 
@@ -544,7 +597,18 @@
             navigator.clipboard.writeText(currentRoomId).then(function () {
                 btnCopyCode.textContent = "Copied!";
                 setTimeout(function () {
-                    btnCopyCode.textContent = "Copy";
+                    btnCopyCode.textContent = "Copy Code";
+                }, 1500);
+            });
+        }
+    });
+
+    btnCopyLink.addEventListener("click", function () {
+        if (currentRoomId) {
+            navigator.clipboard.writeText(getRoomUrl()).then(function () {
+                btnCopyLink.textContent = "Copied!";
+                setTimeout(function () {
+                    btnCopyLink.textContent = "Copy Link";
                 }, 1500);
             });
         }
@@ -570,6 +634,26 @@
         onGameStart: function (callback) { gameStartCallback = callback; }
     };
 
-    // Show home screen on load
-    showScreen(homeScreen);
+    // ---- Handle ?room= param on page load ----
+    var pendingRoom = getRoomParam();
+    if (pendingRoom && isValidRoomCode(pendingRoom)) {
+        // Clear the URL param so refresh doesn't re-trigger
+        clearRoomParam();
+        // Pre-fill the room code input and go to lobby
+        roomCodeInput.value = pendingRoom;
+        showScreen(lobbyScreen);
+    } else {
+        // Show home screen on load
+        showScreen(homeScreen);
+    }
+
+    // ---- Handle browser back button ----
+    window.addEventListener("popstate", function () {
+        if (currentRoomId) {
+            // User pressed back while in a room → leave
+            leaveRoom();
+        } else {
+            showScreen(homeScreen);
+        }
+    });
 })();
